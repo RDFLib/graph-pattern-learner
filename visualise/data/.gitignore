@@ -1,0 +1,3 @@
+# ignore results
+*.js
+*.json.gz

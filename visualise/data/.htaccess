@@ -1,0 +1,3 @@
+Options +MultiViews
+RemoveType .gz
+AddEncoding application/octet-stream .gz

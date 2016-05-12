@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <meta charset="UTF-8">
+    <title>D3 graph pattern visualisation</title>
+
+    <!-- external libs: jQuery, jQuery UI, d3 and bootstrap -->
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.min.css">
+    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+    <script>
+      if (!window.jQuery) {
+       console.warn("googleapis not reachable");
+       document.write('<script src="static/libs/jquery-1.11.3.min.js">\x3C/script>');
+       document.write('<link rel="stylesheet" href="static/libs/jquery-ui-1.11.4/jquery-ui.min.css">');
+       document.write('<script src="static/libs/jquery-ui-1.11.4/jquery-ui.min.js">\x3C/script>');
+      }
+    </script>
+
+    <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <script>
+      if (!$.fn.modal) {
+       console.warn("bootstrapcdn not reachable");
+       document.write('<script src="static/libs/bootstrap-3.3.5/js/bootstrap.min.js">\x3C/script>');
+       document.write('<link rel="stylesheet" href="static/libs/bootstrap-3.3.5/css/bootstrap.min.css">');
+      }
+    </script>
+
+    <script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script>
+      if (!window.d3) {
+       console.warn("d3js.org not reachable");
+       document.write('<script src="static/libs/d3.v3.min.js">\x3C/script>');
+      }
+    </script>
+
+    <script src='//rawgithub.com/imaya/zlib.js/master/bin/gunzip.min.js'></script>
+    <script>
+      if (!window.Zlib) {
+       console.warn("rawgithub (Zlib) not reachable");
+       document.write('<script src="static/libs/gunzip.min.js">\x3C/script>');
+      }
+    </script>
+
+    <link rel="stylesheet" href="static/css/visualise_graphs.css">
+
+    <script src="static/js/util.js"></script>
+
+    <script src="data/global_vars.js"></script>
+
+    <script src="static/js/visualise/svg-crowbar.js"></script>
+    <script src="static/js/visualise/graph_view.js"></script>
+    <script src="static/js/visualise/matrix_view.js"></script>
+    <script src="static/js/visualise/fingerprint_view.js"></script>
+    <script src="static/js/visualise/sidebar.js"></script>
+    <script src="static/js/visualise/data_loader.js"></script>
+
+    <script src="static/js/visualise/main.js"></script>
+
+    <script type="text/javascript">
+    </script>
+  </head>
+  <body>
+    <div class="tablewrapper stretched">
+      <div class="table stretched">
+        <div class="row">
+          <div class="cell top left">
+            <ul class="nav nav-tabs tr" id="top-nav">
+              <li id="graph-nav" role="presentation" class="active">
+                <a href="#graph" aria-controls="graph" role="tab" data-toggle="tab">
+                  Graph
+                </a>
+              </li>
+              <li id="matrix-nav" role="presentation">
+                <a href="#matrix" aria-controls="matrix" role="tab" data-toggle="tab">
+                  Matrix
+                </a>
+              </li>
+              <li id="fingerprint-nav" role="presentation">
+                <a href="#fingerprints" aria-controls="fingerprints" role="tab" data-toggle="tab">
+                  Fingerprint
+                </a>
+              </li>
+            </ul>
+            <div id="searchbar-container">
+                <input id="searchbar" type="text" class="search-query"
+                       placeholder="Search (Alt+Shift+F)" size="30">
+                <span id="searchbar-icon" class="glyphicon glyphicon-search"
+                      aria-hidden="true"></span>
+            </div>
+          </div>
+          <div class="cell rowspanned top right">
+            <div id="sidebar-container">
+              <div id="resize-border"></div>
+              <div id="sidebar">
+
+                <div class="panel panel-default" id="sidebar-global-info-panel">
+                  <div class="panel-heading collapse-heading" id="collapse-global-info-heading">
+                    <a data-toggle="collapse" href="#collapse-global-info"
+                       aria-expanded="true" aria-controls="collapse-global-info collapsed">
+                      <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span>
+                      Info about all graph patterns
+                      <div class="pull-right drop-arrow"></div>
+                    </a>
+                  </div>
+                  <div id="collapse-global-info" aria-labelledby="collapse-global-info-heading"
+                       class="panel-body collapse in" aria-expanded="true">
+                    <input type="radio" name="file-type" value="fin" id="ft-fin">
+                    <label for="ft-fin">Final result of all runs</label><br />
+                    <input type="radio" name="file-type" value="run" id="ft-fin-run">
+                    <label for="ft-fin-run">Final result of run</label><br />
+                    <input type="radio" name="file-type" value="gen" id="ft-gen" checked>
+                    <label for="ft-gen">Specific generation</label><br />
+                    <label for="info-run">Run:</label>
+                    <input type="number" id="info-run" min="1" max="1" value="" />
+                    <label for="info-generation">Generation:</label>
+                    <input type="number" id="info-generation" min="0" max="0" value="" />
+                    <br />
+                    <small>
+                      (<span id="info-timestamp"></span>)
+                      <br />
+                      <a href="" id="info-permalink">
+                        Permalink
+                        <span class="glyphicon glyphicon-link" aria-hidden="true"></span>
+                      </a>
+                    </small>
+                  </div>
+                </div>
+
+                <div class="panel panel-default" id="sidebar-select-panel">
+                  <div class="panel-heading collapse-heading" id="collapse-select-heading">
+                    <a data-toggle="collapse" href="#collapse-select"
+                       aria-expanded="true" aria-controls="collapse-select collapsed">
+                      <span class="glyphicon glyphicon-eye-open" aria-hidden="true"></span>
+                      Choose a graph pattern
+                      <div class="pull-right drop-arrow"></div>
+                    </a>
+                  </div>
+                  <div id="collapse-select" aria-labelledby="collapse-select-heading"
+                       class="panel-body collapse in" aria-expanded="true">
+                    <div id="no-graph-radio-container">
+                      <label for="no-graph-radio" class="graph-radio-label">
+                        <input id="no-graph-radio" name="graph-select" type="radio"
+                               value="-1" class="graph-radio">
+                        Accumulated precisions
+                      </label>
+                      <hr />
+                    </div>
+                    <div id="graph-radios"></div>
+                  </div>
+                </div>
+
+                <div class="panel panel-default" if="sidebar-fitness-panel">
+                  <div class="panel-heading collapse-heading" id="collapse-fitness-heading">
+                    <a data-toggle="collapse" href="#collapse-fitness"
+                       aria-expanded="true" aria-controls="collapse-fitness collapsed">
+                      <span class="glyphicon glyphicon-stats" aria-hidden="true"></span>
+                      Stats about this graph pattern
+                      <div class="pull-right drop-arrow"></div>
+                    </a>
+                  </div>
+                  <div id="collapse-fitness" aria-labelledby="collapse-fitness-heading"
+                       class="panel-body collapse in" aria-expanded="true">
+                    <table class="table table-striped">
+                      <tbody id="info-fitness"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="panel panel-default" id="sidebar-pairs-panel">
+                  <div class="panel-heading collapse-heading" id="collapse-pairs-heading">
+                    <a data-toggle="collapse" href="#collapse-pairs"
+                       aria-expanded="true" aria-controls="collapse-pairs collapsed">
+                      <span class="glyphicon glyphicon-heart"></span>
+                      Matching ground truth pairs
+                      <div class="pull-right drop-arrow"></div>
+                    </a>
+                  </div>
+                  <div id="collapse-pairs" aria-labelledby="collapse-pairs-heading"
+                       class="panel-body collapse in" aria-expanded="true">
+                    <table class="table table-striped">
+                      <tbody id="collapse-pairs-data">
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="panel panel-default" id="sidebar-SPARQL-panel">
+                  <div class="panel-heading collapse-heading" id="collapse-SPARQL-heading">
+                    <a data-toggle="collapse" href="#collapse-SPARQL"
+                       aria-expanded="true" aria-controls="collapse-SPARQL collapsed">
+                      <span class="glyphicon glyphicon-search"></span>
+                      SPARQL-Qurey
+                      <div class="pull-right drop-arrow"></div>
+                    </a>
+                  </div>
+                  <div id="collapse-SPARQL" aria-labelledby="collapse-SPARQL-heading"
+                       class="panel-body collapse in" aria-expanded="true">
+                    <a id="sparql-link" href="" target="_blank">
+                      Execute Query
+                      <span class="glyphicon glyphicon-share"></span>
+                    </a>
+                    <pre id="sparql-query"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row stretched-v">
+          <div class="cell left bottom">
+            <div id="main-content" class="tab-content stretched">
+              <div id="graph" class="tab-pane active stretched">
+                <div id="canvas" class="stretched"></div>
+                <div class="btn-toolbar" role="toolbar" id="play-pause-bar">
+                  <div class="btn-group">
+                    <button type="button" class="btn btn-default active" aria-label="run force layout"
+                            id="play-btn">
+                      <span class="glyphicon glyphicon-play" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="btn btn-default" aria-label="pause force layout"
+                            id="pause-btn">
+                      <span class="glyphicon glyphicon-pause" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="btn btn-default" aria-label="download force layout as svg"
+                            id="download-btn">
+                      <span class="glyphicon glyphicon-floppy-save" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div id="matrix" class="tab-pane stretched">
+                <div id="matrix-container">
+                  <!-- here are going to be the small matrix divs -->
+                </div>
+                <div class="btn-toolbar" role="toolbar" id="sort-bar">
+                  <div class="btn-group">
+                    <button type="button" class="btn btn-default"
+                            aria-label="sort matrix" id="matrix-sort-btn">
+                      <span class="glyphicon glyphicon-sort-by-attributes-alt"
+                            aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div id="fingerprints" class="tab-pane stretched">
+              </div>
+            </div>
+          </div>
+          <div class="cell empty right bottom"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-load-overlay">
+      <div class="modal-load-center">
+        <div class="ball"></div>
+        <div class="ball1"></div>
+        <p>loading</p>
+      </div>
+    </div>
+  </body>
+</html>

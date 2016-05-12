@@ -1,0 +1,470 @@
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    overflow: hidden;
+}
+
+#left-side {
+    height: 100%;
+    width: 100%;
+}
+
+#sidebar-container {
+    min-width: 400px;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+}
+
+#no-graph-radio-container {
+    display: none;
+}
+
+#no-graph-radio-container > hr {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+#canvas {
+    z-index: 0;
+}
+
+#top-nav {
+    margin: 5px 5px 0;
+}
+
+input[type=number] {
+    width: 3.5em;
+}
+
+#sparql-query {
+    word-wrap: normal;
+    overflow: auto;
+    height: 14em;
+}
+
+.table .pair-link {
+    vertical-align: middle;
+}
+
+.top.left {
+    position: relative;
+}
+
+#searchbar-container {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 30px;
+    padding: 12px 0;
+}
+
+#searchbar {
+    padding-right: 18px;
+}
+
+#searchbar-icon {
+    right: 0;
+    position:absolute;
+    margin-right: 5px;
+    padding: 12px 0;
+    line-height: inherit;
+    color: #959595;
+}
+
+/*******************\
+**  graph styling  **
+\*******************/
+#graph {
+    overflow: hidden;
+}
+
+path.link {
+    fill: none;
+    stroke: #666;
+    stroke-width: 2px;
+}
+path.textpath {
+    fill: none;
+    stroke: none;
+}
+circle {
+    fill: #ccc;
+    stroke: #333;
+    stroke-width: 2px;
+}
+
+.start-node {
+    fill: #4d4;
+}
+.end-node {
+    fill: #d44;
+}
+
+text {
+    font: 10px sans-serif;
+    pointer-events: none;
+}
+
+text.shadow {
+    stroke: #fff;
+    stroke-width: 3px;
+    stroke-opacity: .8;
+}
+
+/******************\
+** matrix styling **
+\******************/
+
+#matrix {
+    background-color: #eee;
+    overflow-y: scroll;
+    padding-bottom: 74px;
+}
+
+#main-content {
+    overflow: auto;
+}
+
+.matrix-div {
+    width: 2em;
+    height: 2em;
+    margin: .2em;
+    float: left;
+}
+
+.matrix-div {
+    outline:none;
+    transition: all 0.25s ease-in-out;
+    -webkit-transition: all 0.25s ease-in-out;
+    -moz-transition: all 0.25s ease-in-out;
+}
+
+.matrix-div.matched {
+    box-shadow: 0 0 3px 1px rgb(200, 0, 0);
+    -webkit-box-shadow: 0 0 3px 1px rgba(200, 0, 0, 1);
+    -moz-box-shadow: 0 0 3px 1px rgba(200, 0, 0, 1);
+}
+
+.matrix-div:hover {
+    border: 2px solid rgba(98, 100, 99, 1);
+}
+
+.tooltip-inner {
+    display: inline-block;
+    max-width: none;
+}
+
+/********************\
+** side bar styling **
+\********************/
+#sidebar-container {
+    min-width: 419px;
+    width: 100%;
+    overflow: auto;
+}
+
+#sidebar-container > .ui-resizable-w {
+    width: 9px;
+    height: 100%;
+    padding: 5px 0;
+    left: initial;
+    position: fixed;
+}
+
+#sidebar {
+    padding: 20px;
+    background-color: rgba(196, 199, 198, 0.5);
+    min-height: 100%;
+}
+
+#resize-border {
+    width: 9px;
+    height: 100%;
+    padding: 5px 0;
+    cursor: col-resize;
+    position: fixed;
+    left: initial;
+    background: url(../img/handle-v.png) 3px 50% no-repeat #f5f5f5;
+}
+
+#main-content .btn-toolbar {
+    position: fixed;
+    bottom: 20px;
+    left: 40px;
+}
+
+.arrow-down,
+.collapse-heading > a[aria-expanded="true"] > .drop-arrow{
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid #666;
+    margin-top: 4px;
+}
+.arrow-left,
+.collapse-heading > a[aria-expanded="false"] > .drop-arrow{
+    width: 0;
+    height: 0;
+    border-bottom: 7px solid transparent;
+    border-top: 7px solid transparent;
+    border-right: 7px solid #666;
+}
+
+.table > tbody > tr > td {
+    white-space: nowrap;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+#collapse-select {
+    overflow: auto;
+    height: 20em;
+}
+#collapse-pairs {
+    overflow: auto;
+    max-height: 600px;
+}
+#collapse-pairs dl {
+    margin-bottom: 0;
+}
+#collapse-pairs dt {
+    color: #999999;
+    width: 8ex;
+}
+#collapse-pairs dd {
+    margin-left: 9ex;
+}
+
+.table {
+    margin: 0;
+}
+
+.graph-radio-label {
+    display: block;
+    clear: both;
+}
+
+.no-graph-radio-container,
+.graph-radio-label {
+    margin-left: 20px;
+}
+
+.no-graph-radio-container input,
+.graph-radio-label input {
+    margin-left: -20px;
+}
+
+.no-graph-radio-container > hr {
+    clear: both;
+}
+
+#fingerprints {
+    background-color: #eeeeee;
+    overflow-y: scroll;
+    padding: 5px;
+    padding-top: 15px;
+    position: relative;
+
+}
+
+#fingerprints > canvas {
+    border: 1px solid rgba(100,100,100,.1); /* border as spacer */
+    background-color: white;
+    margin: 0;
+    padding: 0;
+    box-sizing: content-box;
+    display: block;
+    height: 5px;
+    width: 100%;
+    cursor: pointer;
+}
+
+#fingerprints > canvas:first-of-type {
+    margin-bottom: 10px;
+    height: 10px;
+}
+
+#fingerprints > canvas:hover {
+    border: 1px solid rgba(100, 100, 100, 0.5);
+}
+
+#fingerprints > canvas.selected {
+    border: 1px solid rgba(100, 100, 100, 1);
+    /*height: 15px;*/
+}
+
+/********************\
+** table layout fun **
+\********************/
+.tablewrapper {
+    position: relative;
+    max-width: 100%;
+}
+.table {
+    display: table;
+    max-width: 100%;
+}
+.row {
+    display: table-row;
+}
+.cell {
+    display: table-cell;
+}
+.cell.empty
+{
+    border: none;
+}
+.cell.rowspanned {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+}
+
+.stretched-v {
+    height: 100%;
+}
+.stretched-h {
+    width: 100%;
+}
+.stretched {
+    height: 100%;
+    width: 100%;
+}
+
+.bottom.left {
+    width: 100%;
+}
+.right {
+    min-width: 419px;
+}
+#sidebar {
+    min-width: 370px;
+}
+
+#graph-radios .radio-fingerprint,
+#no-graph-radio-container .radio-fingerprint {
+    float: right;
+    margin-top: 3px;
+    width: 40%;
+}
+
+#graph-radios .radio-fingerprint canvas,
+#no-graph-radio-container .radio-fingerprint canvas{
+    width: 100%;
+    height: 1em;
+    float: right;
+    border: 1px solid rgba(100,100,100,.3);
+}
+
+/*****************\
+** loading modal **
+\*****************/
+.modal-load-overlay {
+    display: table;
+    z-index: 9001;  /* over 9000!!! */
+    background-color: rgba(0, 0, 0, .2);
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    opacity: 1;
+    /*transition: opacity 0.3s;*/
+    /* FIXME: fade in / out animation */
+}
+
+.modal-load-overlay.collapsed {
+    opacity: 0;
+    z-index: -9001;
+}
+
+.modal-load-center {
+    display: table-cell;
+    text-align: center;
+    vertical-align: middle;
+    position: relative;
+    margin: auto;
+    color: white;
+    font-weight: bold;
+    font-size: 20px;
+    top: 50px;
+}
+
+.modal-load-center > p {
+    top: -50px;
+    position: relative;
+}
+.modal-load-overlay .ball {
+    background-color: rgba(0,0,0,0);
+    border: 8px solid rgba(0,183,229,0.9);
+    opacity: .9;
+    border-top: 8px solid rgba(0,0,0,0);
+    border-left: 8px solid rgba(0,0,0,0);
+    border-radius: 50px;
+    box-shadow: 0 0 70px #2187e7;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto;
+    -moz-animation: spin .5s infinite linear;
+    -webkit-animation: spin .5s infinite linear;
+}
+
+.modal-load-overlay .ball1 {
+    background-color: rgba(0,0,0,0);
+    border: 8px solid rgba(0,183,229,0.9);
+    opacity: .9;
+    border-top: 8px solid rgba(0,0,0,0);
+    border-left: 8px solid rgba(0,0,0,0);
+    border-radius: 50px;
+    box-shadow: 0 0 30px #2187e7;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto;
+    position: relative;
+    top: -80px;
+    -moz-animation: spinoff .5s infinite linear;
+    -webkit-animation: spinoff .5s infinite linear;
+}
+
+@-moz-keyframes spin {
+    0% {
+        -moz-transform: rotate(0deg);
+    }
+
+    100% {
+        -moz-transform: rotate(360deg);
+    }
+}
+
+@-moz-keyframes spinoff {
+    0% {
+        -moz-transform: rotate(0deg);
+    }
+
+    100% {
+        -moz-transform: rotate(-360deg);
+    }
+}
+
+@-webkit-keyframes spin {
+    0% {
+        -webkit-transform: rotate(0deg);
+    }
+
+    100% {
+        -webkit-transform: rotate(360deg);
+    }
+}
+
+@-webkit-keyframes spinoff {
+    0% {
+        -webkit-transform: rotate(0deg);
+    }
+
+    100% {
+        -webkit-transform: rotate(-360deg);
+    }
+}
