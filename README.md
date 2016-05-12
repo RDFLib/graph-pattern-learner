@@ -9,7 +9,8 @@ patterns. Given a source, the learned patterns will try to lead you to the right
 target.
 
 The algorithm was first developed on a list of human associations that had been
-mapped to DBpedia entities, as can be seen in [data/gt_associations.csv]:
+mapped to DBpedia entities, as can be seen in
+[data/gt_associations.csv](./data/gt_associations.csv):
 
 | source                            | target                            |
 | --------------------------------- | --------------------------------- |
@@ -27,7 +28,7 @@ your list of source-target-pairs is less complicated, the algorithm will happily
 terminate earlier.
 
 You can find more information about the algorithm and learning patterns for
-human associations on [https://w3id.org/associations]. The page also includes
+human associations on https://w3id.org/associations . The page also includes
 publications, as well as the resulting patterns learned for human associations
 from a local DBpedia endpoint including wikilinks.
 
@@ -35,7 +36,7 @@ from a local DBpedia endpoint including wikilinks.
 Installation
 ------------
 
-Currently the suggested installation method is via git clone (also allows easier
+For now, the suggested installation method is via git clone (also allows easier
 contributions):
 
     git clone git@github.com:RDFLib/graph-pattern-learner.git
@@ -106,3 +107,9 @@ patterns generalise, you can run:
 The script will then first learn patterns, visualise them in
 `./results/bundle_name/visualise`, before evaluating predictions on first the
 training- and then the test-set.
+
+
+Contributors
+------------
+ * Jörn Hees
+ * Rouven Bauer (visualise code)
