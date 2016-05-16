@@ -31,6 +31,7 @@ import deap
 import deap.base
 import deap.tools
 import numpy as np
+from rdflib import BNode
 from rdflib import Literal
 from rdflib import URIRef
 from rdflib import Variable
@@ -483,6 +484,10 @@ def mutate_fix_var_filter(item_counts):
                     i
                 )
                 del item_counts[i]
+        if isinstance(i, BNode):
+            # make sure that BNodes stay variables
+            logger.info('removed BNode from mutate_fix_var')
+            del item_counts[i]
 
 
 @exception_stack_catcher
@@ -550,7 +555,7 @@ def mutate_simplify_pattern(gp):
     logger.debug('simplifying pattern\n%s', gp.to_sparql_select_query())
 
     # remove parallel variable edges (single variables only)
-    # e.g., [ :x, ?v1 ?y . :x ?v2 ?y. ]
+    # e.g., [ :x ?v1 ?y . :x ?v2 ?y. ]
     identifier_counts = gp.identifier_counts()
     edges = gp.edges
     edge_vars = [edge for edge in edges if isinstance(edge, Variable)]
@@ -578,7 +583,6 @@ def mutate_simplify_pattern(gp):
 
     # remove unrestricting leaf edges (single occurring vars only) and leaves
     # behind fixed nodes
-    # FIXME: BNodes aren't fixed nodes
     # more explicit: such edges are
     # - single occurrence edge vars with a single occ gen var node,
     #   so (x, ?vp, ?vn) or (?vn, ?vp, x)
@@ -616,6 +620,7 @@ def mutate_simplify_pattern(gp):
     # TODO: maybe remove disconnected components (relevance in reality?)
 
     if len(gp) < 1:
+        # for example: ?s ?v1 ?v2 .
         logger.info(
             'simplification of the following pattern resulted in empty pattern,'
             ' returning original pattern:\n%s',
