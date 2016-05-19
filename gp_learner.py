@@ -21,10 +21,6 @@ from operator import attrgetter
 import random
 from time import sleep
 from datetime import datetime
-import pprint
-from pprint import pformat
-# speeds up pformat at the cost of warning handling
-pprint._sorted = lambda x: sorted(x)
 
 from cachetools import lru_cache
 import deap

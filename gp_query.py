@@ -10,7 +10,6 @@ from collections import Counter
 from collections import Sequence
 
 import logging
-from pprint import pformat
 import re
 import socket
 from time import sleep
@@ -409,8 +408,7 @@ def _query(
     else:
         logger.debug('cache hit')
     t, res = c
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug('orig query took %.4f s, result:\n%s\n', t, pformat(res))
+    logger.debug('orig query took %.4f s, result:\n%s\n', t, res)
     return t, res
 
 
