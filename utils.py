@@ -10,7 +10,6 @@ from itertools import izip_longest
 from timeit import default_timer as timer
 import traceback
 
-from cachetools import lru_cache
 import numpy as np
 import rdflib
 import rdflib.exceptions
@@ -85,7 +84,6 @@ class URIShortener(object):
                 self.nsm.bind(pr, rdflib.util.from_n3(ns_n3), replace=True)
 
 
-@lru_cache(2048)
 def curify(identifier, nsm=None, return_used=False):
     """Returns dbr:Berlin like CURIEs where possible, n3() otherwise.
 
@@ -124,7 +122,6 @@ def curify(identifier, nsm=None, return_used=False):
     return (identifier.n3(), None, None) if return_used else identifier.n3()
 
 
-@lru_cache(2048)
 def decurify(n3_str, nsm=None):
     """Returns rdflib terms for CURIE / n3() string representations.
 
