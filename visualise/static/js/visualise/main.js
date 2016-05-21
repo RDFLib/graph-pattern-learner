@@ -185,6 +185,8 @@ Main.setBindings = function() {
         }
     });
 
+    $("#help-icon").click(startIntro);
+
     $("#matrix").click(function(e) {
         if (!$(e.target).hasClass("matrix-div")){
             MatrixView.Filter.clearPatterns();
