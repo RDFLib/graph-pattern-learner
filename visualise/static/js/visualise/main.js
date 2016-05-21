@@ -185,7 +185,8 @@ Main.setBindings = function() {
         }
     });
 
-    $("#help-icon").click(startIntro);
+    $("#help-icon").click(function() {startTour(true)});
+    $(function() {startTour(false)});
 
     $("#matrix").click(function(e) {
         if (!$(e.target).hasClass("matrix-div")){
