@@ -217,11 +217,9 @@ Sidebar.showHideRadios = function(visible_idxs) {
         if (visible_idxs.indexOf(idx) >= 0) {
             $(this).show();
             $(this).children().first().attr('disabled', false);
-            $(this).prev().show(); // also show fingerprint
         } else {
             $(this).hide();
             $(this).children().first().attr('disabled', true);
-            $(this).prev().hide(); // hide fingerprint
         }
     })
 };
