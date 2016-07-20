@@ -193,7 +193,7 @@ def prepare_compressed_content(arg):
         res = json.load(f)
     res = convert_content(fn, res)
     with fast_gzip(fn) as f:
-        json.dump(res, f)
+        json.dump(res, f, indent=2)
 
 
 def prepare_content_of_all_files(dst=OUT_DIR):
