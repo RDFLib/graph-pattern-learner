@@ -75,6 +75,10 @@ input[type=number] {
     color: #959595;
 }
 
+.tour-backdrop {
+    opacity: 0.5;
+}
+
 /*******************\
 **  graph styling  **
 \*******************/
