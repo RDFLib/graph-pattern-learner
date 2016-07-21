@@ -21,7 +21,16 @@ function startTour(force_start){
             return;
         }
         // var element_offset = $(element).offset().top;
-        $("#sidebar-container").scrollTo(element, 200, {offset:-50});
+        var panel = $(element).closest('.panel');
+        $("#sidebar-container").scrollTo(panel, 200, {offset:-50});
+        var panel_body = $(element).closest('.panel-body');
+        if (panel_body) {
+            panel_body.scrollTo(element, 200, {offset: -100});
+            var tr = $(element).closest('tr');
+            if (tr) {
+                panel_body.scrollTo(tr, 200, {offset: -50});
+            }
+        }
     }
 
     function fixupSVGHighlighting(t) {
@@ -96,6 +105,7 @@ function startTour(force_start){
             },
             {
                 element: '#sidebar-pairs-panel .pair-link:first',
+                onShow: autoScrollSideBar,
                 placement: 'left',
                 content: "You can also execute the SPARQL query for the current pattern pre-filled with the individual source node."
             },
@@ -147,20 +157,20 @@ function startTour(force_start){
             {
                 element: '#matrix-container .matrix-div[data-original-title*="Precision: 1"]:first',
                 // onShow: autoScrollSideBar,
-                placement: 'bottom',
+                placement: 'auto bottom',
                 backdrop: false,
                 content: "For example, this is a high precision match of the current pattern selected on the right for the input ground truth pair (see the URIs on top). We also list how many patterns in total (including the current one) match it."
             },
             {
                 element: '#matrix-container .matrix-div[data-original-title*="Precision: 0<"]:first',
                 // onShow: autoScrollSideBar,
-                placement: 'bottom',
+                placement: 'auto bottom',
                 backdrop: false,
                 content: "This is a low precision example. The currently selected pattern on the right does not match this ground truth pair (but other patterns hopefully do)."
             },
             {
                 element: '#graph-radios input:not(:checked):first',
-                // onShow: autoScrollSideBar,
+                onShow: autoScrollSideBar,
                 placement: 'left',
                 backdrop: false,
                 reflex: true,
@@ -168,7 +178,7 @@ function startTour(force_start){
             },
             {
                 element: '#no-graph-radio-container',
-                // onShow: autoScrollSideBar,
+                onShow: autoScrollSideBar,
                 placement: 'left',
                 backdrop: false,
                 reflex: true,
@@ -177,7 +187,7 @@ function startTour(force_start){
             },
             {
                 element: '#fingerprint-nav',
-                onShow: autoScrollSideBar,
+                // onShow: autoScrollSideBar,
                 placement: 'bottom',
                 backdrop: false,
                 reflex: true,
@@ -193,7 +203,7 @@ function startTour(force_start){
             },
             {
                 element: '#graph-fingerprint0',
-                // onShow: autoScrollSideBar,
+                onShow: autoScrollSideBar,
                 placement: 'bottom',
                 backdrop: false,
                 reflex: true,
