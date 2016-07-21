@@ -44,6 +44,11 @@
       }
     </script>
 
+    <link rel="stylesheet" href="static/libs/bootstrap-tour-0.10.3/bootstrap-tour.min.css">
+    <script src="static/libs/bootstrap-tour-0.10.3/bootstrap-tour.min.js"></script>
+    <script src="static/libs/jquery.scrollTo.min.js"></script>
+
+
     <link rel="stylesheet" href="static/css/visualise_graphs.css">
 
     <script src="static/js/util.js"></script>
@@ -56,6 +61,7 @@
     <script src="static/js/visualise/fingerprint_view.js"></script>
     <script src="static/js/visualise/sidebar.js"></script>
     <script src="static/js/visualise/data_loader.js"></script>
+    <script src="static/js/visualise/tour.js"></script>
 
     <script src="static/js/visualise/main.js"></script>
 
@@ -85,6 +91,7 @@
               </li>
             </ul>
             <div id="searchbar-container">
+                <span id="help-icon" class="glyphicon glyphicon-question-sign"></span>
                 <input id="searchbar" type="text" class="search-query"
                        placeholder="Search (Alt+Shift+F)" size="30">
                 <span id="searchbar-icon" class="glyphicon glyphicon-search"
@@ -152,7 +159,7 @@
                   </div>
                 </div>
 
-                <div class="panel panel-default" if="sidebar-fitness-panel">
+                <div class="panel panel-default" id="sidebar-fitness-panel">
                   <div class="panel-heading collapse-heading" id="collapse-fitness-heading">
                     <a data-toggle="collapse" href="#collapse-fitness"
                        aria-expanded="true" aria-controls="collapse-fitness collapsed">
