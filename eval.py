@@ -100,7 +100,11 @@ def pattern_generator(length, loops=True, exclude_isomorphic=True):
 
 
 def main():
-    length = 3
+    length = 5
+    # 3: 702 of 17296
+    # 4: 16473 of 3921225
+    # 5:  of 1488847536
+
     gen_patterns = list(pattern_generator(length))
     for n, (i, pattern) in enumerate(gen_patterns):
         print('%d: Pattern id %d: %s' % (n, i, pattern))
