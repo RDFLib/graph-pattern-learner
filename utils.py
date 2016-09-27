@@ -243,6 +243,17 @@ def get_path(nested, key_path, default=None):
     return nested
 
 
+def run_once(func):
+    """Decorator that causes a function to be executed only once."""
+    @wraps(func)
+    def wrapper(*args, **kwds):
+        if not wrapper.ran:
+            wrapper.ran = True
+            return func(*args, **kwds)
+    wrapper.ran = False
+    return wrapper
+
+
 def sample_from_list(l, probs, max_n=None):
     """Sample list according to probs.
 

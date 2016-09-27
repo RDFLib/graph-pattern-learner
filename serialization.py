@@ -27,6 +27,7 @@ import config
 from graph_pattern import GraphPattern
 from gtp_scores import GTPScores
 from utils import decurify
+from utils import run_once
 
 logger = logging.getLogger(__name__)
 
@@ -235,15 +236,19 @@ def print_results(
             print_graph_pattern(gp)
 
     if edge_only_connected_patterns:
-        print(
-            '\n\n\nThe following edge only connected or mixed node and edge '
-            'vars patterns made it into raw result patterns:\n'
-        )
+        @run_once
+        def lazy_print_header():
+            print(
+                '\n\n\nThe following edge only connected or mixed node and edge'
+                ' vars patterns made it into raw result patterns:\n'
+            )
         for gp, run in result_patterns:
             if gp.is_edge_connected_only():
+                lazy_print_header()
                 print('edge connected only pattern:')
                 print_graph_pattern(gp, 0)
             if gp.mixed_node_edge_vars():
+                lazy_print_header()
                 print('mixed node and edge vars in pattern:')
                 print_graph_pattern(gp, 0)
 
