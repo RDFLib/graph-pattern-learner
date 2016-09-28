@@ -33,6 +33,7 @@ from rdflib import URIRef
 from rdflib import Variable
 import SPARQLWrapper
 from scoop.futures import map as parallel_map
+import six
 
 import logging
 logger = logging.getLogger(__name__)
@@ -1177,7 +1178,31 @@ def find_graph_pattern_coverage(
     return patterns, coverage_counts, gtp_scores
 
 
-def predict_target(sparql, timeout, gps, source, parallel=None):
+def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
+    """Uses the gps to predict target candidates for the given source.
+
+    :param sparql: SPARQLWrapper endpoint.
+    :param timeout: Timeout in seconds for each individual query (gp).
+    :param gps: A list of evaluated GraphPattern objects (fitness is used).
+    :param source: source node
+    :param parallel: execute prediction queries in parallel?
+    :return: A list of pairs [(target_candidates, gp)]
+    """
+    if parallel is None:
+        parallel = config.PREDICTION_IN_PARALLEL
+
+    pq = partial(
+        predict_query,
+        sparql, timeout,
+        source=source,
+    )
+    map_ = parallel_map if parallel else map
+    results = map_(pq, gps)
+    results = zip([res for _, res in results], gps)
+    return results
+
+
+def fuse_prediction_results(predict_query_results, fusion_methods=None):
     """Several naive prediction methods for targets given a source.
 
     The naive methods here are used to re-assemble all result lists returned by
@@ -1194,17 +1219,14 @@ def predict_target(sparql, timeout, gps, source, parallel=None):
         - 'f_measures_precisions': same as above but scaled with precision
         - 'gp_precisions_precisions': same as above but scaled with precision
 
-    :param sparql: SPARQLWrapper endpoint.
-    :param timeout: Timeout in seconds for each individual query (gp).
-    :param gps: A list of evaluated GraphPattern objects (fitness is used).
-    :param source: source node
-    :param parallel: execute prediction queries in parallel?
+    :param predict_query_results: a list of [(target_candidates, gp)] as
+        returned by predict_target_candidates().
+    :param fusion_methods: None for all or a list of strings naming the fusion
+        methods to return.
     :return: A dict like {method: ranked_res_list}, where ranked_res_list is a
         list result list produced by method of (predicted_target, score) pairs
         ordered decreasingly by score. For methods see above.
     """
-    if parallel is None:
-        parallel = config.PREDICTION_IN_PARALLEL
     target_occs = Counter()
     scores = Counter()
     f_measures = Counter()
@@ -1216,15 +1238,8 @@ def predict_target(sparql, timeout, gps, source, parallel=None):
     gp_precisions_precisions = Counter()
 
     # TODO: add cut-off values for methods (will have different recalls then)
-    pq = partial(
-        predict_query,
-        sparql, timeout,
-        source=source,
-    )
-    map_ = parallel_map if parallel else map
-    results = map_(pq, gps)
-    results = zip([res for _, res in results], gps)
-    for res, gp in results:
+
+    for res, gp in predict_query_results:
         score = gp.fitness.values.score
         fm = gp.fitness.values.f_measure
         gp_precision = 1
@@ -1256,7 +1271,23 @@ def predict_target(sparql, timeout, gps, source, parallel=None):
         ('f_measures_precisions', f_measures_precisions.most_common()),
         ('gp_precisions_precisions', gp_precisions_precisions.most_common()),
     ])
+    if fusion_methods:
+        # TODO: could improve by not actually calculating them
+        for k in res.keys():
+            if k not in fusion_methods:
+                del res[k]
     return res
+
+
+def predict_target(
+        sparql, timeout, gps, source,
+        parallel=None, fusion_methods=None
+):
+    """Predict candidates and fuse the results."""
+    return fuse_prediction_results(
+        predict_target_candidates(sparql, timeout, gps, source, parallel),
+        fusion_methods
+    )
 
 
 def find_in_prediction(prediction, target):
@@ -1267,12 +1298,25 @@ def find_in_prediction(prediction, target):
         return -1
 
 
+def print_prediction_results(method, res, target=None, idx=None):
+    assert not ((target is None) ^ (idx is None)), \
+        "target and idx should both be None or neither"
+    print(
+        '  Top 10 predictions (method: %s)%s' % (
+            method, (", target at idx: %d" % idx) if idx is not None else ''))
+    for t, score in res[:10]:
+        print(
+            '  ' + ('->' if t == target else '  ') +
+            '%s (%.3f)' % (t.n3(), score)
+        )
+
+
 def evaluate_prediction(sparql, gps, predict_list):
     recall = 0
     method_idxs = defaultdict(list)
     res_lens = []
     timeout = calibrate_query_timeout(sparql)
-    for i, (source, target) in enumerate(predict_list):
+    for i, (source, target) in enumerate(predict_list, 1):
         print('%d/%d: predicting target for %s (ground truth: %s):' % (
             i, len(predict_list), source.n3(), target.n3()))
         method_res = predict_target(sparql, timeout, gps, source)
@@ -1290,14 +1334,7 @@ def evaluate_prediction(sparql, gps, predict_list):
                 print('  result list length: %d' % n)
             method_idxs[method].append(idx)
 
-            print(
-                '  Top 10 predictions (method: %s), target at idx: %d' % (
-                    method, idx))
-            for t, score in res[:10]:
-                print(
-                    '  ' + ('->' if t == target else '  ') +
-                    '%s (%.3f)' % (t.n3(), score)
-                )
+            print_prediction_results(method, res, target, idx)
 
     recall /= len(predict_list)
     print("Prediction list: %s" % predict_list)
@@ -1462,7 +1499,7 @@ def main(
         sys.stderr.flush()
 
 
-    if predict:
+    if predict and predict != 'manual':
         assert predict in ('train_set', 'test_set')
         predict_list = assocs_train if predict == 'train_set' else assocs_test
         print('\n\n\nstarting prediction on %s' % predict)
@@ -1475,4 +1512,18 @@ def main(
     main_end = datetime.utcnow()
     logging.info('Overall execution took: %s', main_end - main_start)
 
-    # TODO: make continuous prediction mode
+    if predict == 'manual':
+        timeout = calibrate_query_timeout(sparql)
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        while True:
+            s = six.moves.input(
+                '\n\nEnter a DBpedia resource as source:\n'
+                '> http://dbpedia.org/resource/'
+            )
+            source = URIRef('http://dbpedia.org/resource/' + s)
+
+            method_res = predict_target(sparql, timeout, gps, source)
+            for method, res in method_res.items():
+                print_prediction_results(method, res)

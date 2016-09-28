@@ -133,7 +133,7 @@ if __name__ == "__main__":
              "disable evaluation set to ''.",
         action="store",
         type=str,
-        choices=("test_set", "train_set", ""),
+        choices=("test_set", "train_set", "manual", ""),
         default="",
     )
 
