@@ -911,15 +911,19 @@ def generate_init_population(
     return fit_population
 
 
-def generation_step_callback(toolbox, ngen, population):
+def generation_step_callback(
+        run, gtp_scores, user_callback_per_generation, ngen, population
+):
     """Called after each generation step cycle in train().
 
-    :param toolbox: toolbox of the evolutionary algorithm.
+    :param run: number of the current run
+    :param gtp_scores: gtp_scores as of start of this run
+    :param user_callback_per_generation: a user provided callback that is called
+        after each training generation. It not None called like this:
+        user_callback_per_generation(run, gtp_scores, ngen, population)
     :param ngen: the number of the current generation.
     :param population: the current population after generation ngen.
     """
-    run = toolbox.get_run()
-    gtp_scores = toolbox.get_gtp_scores()
     top_counter = print_population(run, ngen, population)
     top_gps = sorted(
         top_counter.keys(), key=attrgetter("fitness"), reverse=True
@@ -929,15 +933,18 @@ def generation_step_callback(toolbox, ngen, population):
     save_population(
         run, ngen, top_gps, generation_gtp_scores
     )
+    if user_callback_per_generation:
+        # user provided callback
+        user_callback_per_generation(run, gtp_scores, ngen, population)
 
 
 def find_graph_patterns(
-        sparql, run, gtp_scores):
+        sparql, run, gtp_scores,
+        user_callback_per_generation=None,
+):
     timeout = calibrate_query_timeout(sparql)
 
     toolbox = deap.base.Toolbox()
-    toolbox.register("get_run", lambda: run)
-    toolbox.register("get_gtp_scores", lambda: gtp_scores)
 
     toolbox.register(
         "mate", mate
@@ -952,7 +959,10 @@ def find_graph_patterns(
     )
     toolbox.register(
         "evaluate", evaluate, sparql, timeout, gtp_scores)
-    toolbox.register("generation_step_callback", generation_step_callback)
+    toolbox.register(
+        "generation_step_callback",
+        generation_step_callback, run, gtp_scores, user_callback_per_generation
+    )
 
 
     population = generate_init_population(
@@ -985,11 +995,15 @@ def _find_graph_pattern_coverage_run(
         coverage_counts,
         gtp_scores,
         patterns,
+        user_callback_per_generation=None,
+        user_callback_per_run=None,
 ):
     min_fitness = calc_min_fitness(gtp_scores, min_score)
 
     ngen, res_pop, hall_of_fame, toolbox = find_graph_patterns(
-        sparql, run, gtp_scores)
+        sparql, run, gtp_scores,
+        user_callback_per_generation=user_callback_per_generation,
+    )
 
     # TODO: coverage patterns should be chosen based on similarity
     new_best_patterns = []
@@ -1085,6 +1099,11 @@ def _find_graph_pattern_coverage_run(
     )
     set_symlink(fp, config.SYMLINK_CURRENT_RES_RUN)
 
+    if user_callback_per_run:
+        user_callback_per_run(
+            run, gtp_scores, new_best_patterns, coverage_counts
+        )
+
     return new_best_patterns, coverage_counts, gtp_scores
 
 
@@ -1096,6 +1115,8 @@ def find_graph_pattern_coverage(
         max_runs=config.NRUNS,
         runs_no_improvement=config.NRUNS_NO_IMPROVEMENT,
         error_retries=config.ERROR_RETRIES,
+        user_callback_per_generation=None,
+        user_callback_per_run=None,
 ):
     assert isinstance(ground_truth_pairs, tuple)
 
@@ -1135,6 +1156,8 @@ def find_graph_pattern_coverage(
                     coverage_counts,
                     gtp_scores,
                     patterns,
+                    user_callback_per_generation=user_callback_per_generation,
+                    user_callback_per_run=user_callback_per_run,
                 )
             new_best_patterns, coverage_counts, gtp_scores = res
             patterns.update({pat: run for pat, run in new_best_patterns})
