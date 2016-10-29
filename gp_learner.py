@@ -82,6 +82,27 @@ from utils import sample_from_list
 logger.info('init gp_learner')
 
 
+class GPLearnerException(Exception):
+    pass
+
+
+class GPLearnerAbortException(GPLearnerException):
+    """Exception base class to be raised to abort whole GP Learner."""
+    pass
+
+
+class GPLearnerTestPatternFoundException(GPLearnerAbortException):
+    """Exception to be thrown when a test pattern is found.
+
+    This exception is used in eval mode to enable early termination as soon as
+    a test pattern (to be searched) ends up in the results of one generation.
+    Early termination here allows not wasting additional time for the full
+    run to complete. It skips out of the code immediately, re-raising the
+    exception for external (eval) handling.
+    """
+    pass
+
+
 def f_measure(precision, recall, beta=config.F_MEASURE_BETA):
     """Calculates the f1-measure from precision and recall."""
     if precision + recall <= 0:
@@ -1178,6 +1199,11 @@ def find_graph_pattern_coverage(
                     )
                     break
             run += 1
+        except GPLearnerAbortException as e:
+            # this exception is only raised to intentionally abort the whole
+            # learning process. Don't run auto-retry.
+            logger.info('gp learner was aborted intentionally: %r', e)
+            raise
         except Exception as e:
             error_count += 1
             logger.error('uncaught exception in run %d' % run)
