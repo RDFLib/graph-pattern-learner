@@ -39,7 +39,7 @@ Installation
 For now, the suggested installation method is via git clone (also allows easier
 contributions):
 
-    git clone git@github.com:RDFLib/graph-pattern-learner.git
+    git clone https://github.com/RDFLib/graph-pattern-learner.git
     cd graph-pattern-learner
 
 Afterwards, to setup the virtual environment and install all dependencies in it:
@@ -97,9 +97,9 @@ If you want to speed things up you can (and should) run with SCOOP in parallel:
 
 SCOOP will then run the graph pattern learner distributed over 8 cores (-n).
 
-The algorithm will by default randomly split your input list of source-target-
-pairs into a training and a test set. If you want to see how well the learned
-patterns generalise, you can run:
+The algorithm will by default randomly split your input list of
+source-target-pairs into a training and a test set. If you want to see how well
+the learned patterns generalise, you can run:
 
     ./run_create_bundle.sh ./results/bundle_name sparql_endpoint \
         --associations_filename=...
