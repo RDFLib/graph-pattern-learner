@@ -22,7 +22,7 @@ import random
 from time import sleep
 from datetime import datetime
 
-from cachetools import lru_cache
+from cachetools.func import lru_cache
 import deap
 import deap.base
 import deap.tools
