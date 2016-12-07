@@ -105,9 +105,10 @@ def main():
     # 4: 16473 of 3921225
     # 5:  of 1488847536
 
-    gen_patterns = list(pattern_generator(length))
-    for n, (i, pattern) in enumerate(gen_patterns):
+    gen_patterns = []
+    for n, (i, pattern) in enumerate(pattern_generator(length)):
         print('%d: Pattern id %d: %s' % (n, i, pattern))
+        gen_patterns.append((i, pattern))
     patterns = set(gp for pid, gp in gen_patterns[:-1])
 
     # testing flipped edges
