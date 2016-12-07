@@ -25,7 +25,8 @@ logger.info('init')
 
 # FIXME: properties as subject / object!
 
-def pattern_generator(length, loops=True, exclude_isomorphic=True):
+def pattern_generator(
+        length, loops=True, p_connected=True, exclude_isomorphic=True):
     canonicalized_patterns = {}
     possible_var_nodes = [Variable('n%d' % i) for i in range(length - 1)]
     possible_nodes = possible_var_nodes + [SOURCE_VAR, TARGET_VAR]
@@ -69,7 +70,7 @@ def pattern_generator(length, loops=True, exclude_isomorphic=True):
             continue
 
         # check that the pattern is connected
-        if not gp.is_connected():
+        if not gp.is_connected(via_edges=p_connected):
             logger.debug('excluded %d: not connected:\n%s', pid, gp)
             continue
 
