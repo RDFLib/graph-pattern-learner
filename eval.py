@@ -23,6 +23,17 @@ logger = logging.getLogger(__name__)
 logger.info('init')
 
 
+DEBUG = False
+
+# debug logging in this module is actually quite expensive (> 30 % of time). In
+# case it's undesired the following removes that overhead.
+if not DEBUG:
+    # noinspection PyUnusedLocal
+    def quick_skip_debug_log(*args, **kwds):
+        pass
+    logger.debug = quick_skip_debug_log
+
+
 def pattern_generator(
         length,
         loops=True,
