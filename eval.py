@@ -23,20 +23,26 @@ logger = logging.getLogger(__name__)
 logger.info('init')
 
 
-# FIXME: properties as subject / object!
-
 def pattern_generator(
-        length, loops=True, p_connected=True, exclude_isomorphic=True):
+        length,
+        loops=True,
+        node_edge_joint=True,
+        p_connected=True,
+        exclude_isomorphic=True,
+):
     canonicalized_patterns = {}
-    possible_var_nodes = [Variable('n%d' % i) for i in range(length - 1)]
-    possible_nodes = possible_var_nodes + [SOURCE_VAR, TARGET_VAR]
-    possible_edges = [Variable('e%d' % i) for i in range(length)]
+
+    # To be connected there are max 3 + 2 + 2 + 2 + ... vars for the triples.
+    # The first can be 3 different ones (including ?source and ?target, then
+    # in each of the following triples at least one var has to be an old one
+    possible_vars = [Variable('v%d' % i) for i in range((2 * length) - 1)]
+    possible_vars += [SOURCE_VAR, TARGET_VAR]
 
     possible_triples = [
         (s, p, o)
-        for s in possible_nodes
-        for p in possible_edges
-        for o in possible_nodes
+        for s in possible_vars
+        for p in possible_vars
+        for o in possible_vars
     ]
 
     n_patterns = binom(len(possible_triples), length)
@@ -53,15 +59,16 @@ def pattern_generator(
             logger.debug(
                 'excluded %d: source or target missing: %s', pid, gp)
             continue
-        nodes = sorted(gp.nodes - {SOURCE_VAR, TARGET_VAR})
-        edges = sorted(gp.edges)
+        vars_ = sorted(gp.vars_in_graph - {SOURCE_VAR, TARGET_VAR})
 
         # check there are no skipped nodes, e.g., link to n2 picked but no n1
-        if nodes != possible_var_nodes[:len(nodes)]:
-            logger.debug('excluded %d: skipped node: %s', pid, gp)
+        if vars_ != possible_vars[:len(vars_)]:
+            logger.debug('excluded %d: skipped var: %s', pid, gp)
             continue
-        if edges != possible_edges[:len(edges)]:
-            logger.debug('excluded %d: skipped edge: %s', pid, gp)
+
+        # check if nodes and edges are disjoint
+        if not node_edge_joint and (gp.nodes & gp.edges):
+            logger.debug('excluded %d: node-edge-joined: %s', pid, gp)
             continue
 
         # check for loops if necessary
@@ -101,10 +108,10 @@ def pattern_generator(
 
 
 def main():
-    length = 5
-    # 3: 702 of 17296
-    # 4: 16473 of 3921225
-    # 5:  of 1488847536
+    length = 3
+    # 3: 47478 (pcon, nej) of 6666891
+    # 4:
+    # 5:
 
     gen_patterns = []
     for n, (i, pattern) in enumerate(pattern_generator(length)):
