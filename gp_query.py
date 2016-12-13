@@ -8,7 +8,6 @@ from __future__ import unicode_literals
 from collections import defaultdict
 from collections import Counter
 from collections import Sequence
-
 import logging
 import re
 import socket
@@ -17,14 +16,15 @@ from time import sleep
 from cachetools import LRUCache
 import six
 from rdflib.term import Identifier
-
-
 import SPARQLWrapper
 from SPARQLWrapper.SPARQLExceptions import EndPointNotFound
 from SPARQLWrapper.SPARQLExceptions import SPARQLWrapperException
 from xml.sax.expatreader import SAXParseException
 # noinspection PyUnresolvedReferences
 from six.moves.urllib.error import URLError
+from splendid import chunker
+from splendid import get_path
+from splendid import time_func
 
 import config
 from graph_pattern import GraphPattern
@@ -32,11 +32,8 @@ from graph_pattern import SOURCE_VAR
 from graph_pattern import TARGET_VAR
 from graph_pattern import ASK_VAR
 from graph_pattern import COUNT_VAR
-from utils import chunker
 from utils import exception_stack_catcher
-from utils import get_path
 from utils import sparql_json_result_bindings_to_rdflib
-from utils import time
 from utils import timer
 
 logger = logging.getLogger(__name__)
@@ -63,7 +60,7 @@ def calibrate_query_timeout(
         sparql.resetQuery()
         sparql.setReturnFormat(SPARQLWrapper.JSON)
         sparql.setQuery(q)
-        t, r = time(sparql.queryAndConvert)
+        t, r = time_func(sparql.queryAndConvert)
         total_time += t
     avg = total_time / n_queries
     timeout = avg * factor
@@ -392,7 +389,7 @@ def _query(
         try:
             q_short = ' '.join((line.strip() for line in q.split('\n')))
             sparql.setQuery(q_short)
-            c = time(sparql.queryAndConvert)
+            c = time_func(sparql.queryAndConvert)
         except socket.timeout:
             c = (timeout, {})
         except ValueError:

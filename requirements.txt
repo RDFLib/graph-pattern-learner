@@ -13,6 +13,7 @@ scipy>=0.18.1
 scoop>=0.7.1.1
 six>=1.10.0
 SPARQLWrapper>=1.7.6
+splendid>=1.0.2
 
 # cachetools==2.0.0
 # click==6.6

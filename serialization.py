@@ -22,12 +22,12 @@ import deap
 import deap.base
 import deap.tools
 import numpy as np
+from splendid import run_once
 
 import config
 from graph_pattern import GraphPattern
 from gtp_scores import GTPScores
 from utils import decurify
-from utils import run_once
 
 logger = logging.getLogger(__name__)
 

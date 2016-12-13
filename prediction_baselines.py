@@ -9,6 +9,7 @@ from SPARQLWrapper import SPARQLWrapper
 from rdflib import URIRef
 from rdflib import Literal
 from rdflib import Variable
+from splendid import get_path
 
 import config
 from gp_learner import find_in_prediction
@@ -16,7 +17,6 @@ from graph_pattern import TARGET_VAR
 from ground_truth_tools import get_semantic_associations
 from ground_truth_tools import split_training_test_set
 import gp_query
-from utils import get_path
 from utils import sparql_json_result_bindings_to_rdflib
 
 TIMEOUT = 30
