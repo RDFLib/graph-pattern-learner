@@ -5,13 +5,16 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from copy import deepcopy
 from itertools import combinations
 from itertools import combinations_with_replacement
 from itertools import permutations
 from itertools import product
+import sys
 
 from rdflib import Variable
 from scipy.special import binom
+from scipy.misc import comb
 
 from logging_config import logging
 from graph_pattern import SOURCE_VAR
@@ -24,6 +27,7 @@ logger.info('init')
 
 
 DEBUG = False
+HOLE = sys.maxint  # placeholder for holes in partial patterns
 
 # debug logging in this module is actually quite expensive (> 30 % of time). In
 # case it's undesired the following removes that overhead.
@@ -32,6 +36,173 @@ if not DEBUG:
     def quick_skip_debug_log(*args, **kwds):
         pass
     logger.debug = quick_skip_debug_log
+
+
+def numerical_patterns(
+        length,
+        _partial_pattern=None,
+        _pos=None,
+        _var=1,
+):
+    """Numerical pattern generator.
+
+    A pattern is a tuple of 3 tuples of variables, so for example the following
+    is a pattern of length 2:
+    ((?source, ?v3, ?target), (?target, ?v3, ?v4))
+
+    For brevity, we can write the same as:
+    'acb bcd' or numerical as '132 231'
+
+    In the short version we could map ?source to 'a' or '1', ?target to 'b' or
+    '2' and the other variables to the following letters / numbers.
+
+    During generation we should take care that we don't generate a whole lot of
+    unnecessary duplicates (so patterns that are obviously invalid or isomorphic
+    to previous ones).
+
+    A pattern is valid if:
+    - its triples are sorted
+        NO: 221 112 --> YES: 112 221
+    - its triples are pairwise distinct
+        NO: 112 112
+    - its triples are pairwise connected
+        NO: 123 456
+        YES: 123 345
+        YES: 123 132
+    - the used variables don't skip a variable
+        NO: 124 456 --> YES: 123 345
+    - variables aren't unnecessary high
+        NO: 124 334 --> YES: 123 443
+        NO: 421 534 --> YES: 123 451
+        YES: 312 411
+    - it uses between 2 (source and target) and 2n + 1 vars (3 + 2 + 2 + ...)
+
+    """
+    if not _partial_pattern:
+        _partial_pattern = [[HOLE, HOLE, HOLE] for _ in range(length)]
+        _pos = (0, 0)
+
+    i, j = _pos
+    _partial_pattern = deepcopy(_partial_pattern)
+    _partial_pattern[i][j] = _var
+
+    if i >= 1 and _partial_pattern[i - 1] >= _partial_pattern[i]:
+        # current triple must be larger than previous one for sorting and to
+        # exclude multiple equivalent triples
+        return
+
+    if i >= 1 and j == 2:
+        # we just completed a triple, check that it's connected
+        t = _partial_pattern[i]
+        for pt in _partial_pattern[:i]:
+            if t[0] in pt or t[1] in pt or t[2] in pt:
+                break
+        else:
+            # we're not connected, early terminate this
+            # This is safe as a later triple can't reconnect us anymore without
+            # an isomorphic, lower enumeration that would've been encountered
+            # before:
+            # say we have
+            #   abc xyz uvw
+            # with xyz not being connected yet and uvw or any later part
+            # connecting xyz back to abc. We can just use a breadth first search
+            # from abc via those connecting triples and re-label all encountered
+            # vars by breadth first search encountering. That re-labeling is
+            # guaranteed to forward connect and it will generate a smaller
+            # labelling than the current one.
+            return
+
+    if i >= length - 1 and j >= 2:
+        # we're at the end of the pattern
+        yield _partial_pattern
+    else:
+        # advance to next position
+        j += 1
+        if j > 2:
+            j = 0
+            i += 1
+
+        flat_pp = [v for t in _partial_pattern for v in t]
+        prev_vars = [v for v in flat_pp][:3*i + j]
+        prev_max_var = max([v for v in prev_vars if v != HOLE])
+        _star_var = 1
+        # if i > 0:
+        #     # doesn't seem to hold :(
+        #     _star_var = _partial_pattern[i - 1][j]
+        _end_var = min(
+            prev_max_var + 1,  # can't skip a var
+            # 2*length + 1,  # can't exceed max total number of vars (induced)
+            3 + 2*i,  # vars in triple i can't exceed this, otherwise not sorted
+        )
+        for v in range(_star_var, _end_var + 1):
+            for pattern in numerical_patterns(
+                    length,
+                    _partial_pattern=_partial_pattern,
+                    _pos=(i, j),
+                    _var=v
+            ):
+                yield pattern
+
+
+def patterns(
+        length,
+        exclude_isomorphic=True,
+        count_candidates_only=False,
+):
+    """Takes a numerical pattern and generates actual patterns from it."""
+    assert not count_candidates_only or not exclude_isomorphic, \
+        'count_candidates_only cannot be used with isomorphism check'
+
+    canonicalized_patterns = {}
+
+    pid = -1
+    for c, num_pat in enumerate(numerical_patterns(length)):
+        numbers = sorted(set([v for t in num_pat for v in t]))
+        # var_map = {i: '?v%d' % i for i in numbers}
+        # pattern = GraphPattern(
+        #     tuple([tuple([var_map[i] for i in t]) for t in numerical_repr]))
+        if count_candidates_only:
+            l = len(numbers)
+            perms = l * (l-1)
+            pid += perms
+            # yield pid, None  # way slower, rather show progress from here:
+            if c % 100000 == 0:
+                logger.info(
+                    'pattern id: %d, vars: %d, permutations: %d',
+                    pid, l, perms
+                )
+            continue
+
+        for s, t in permutations(numbers, 2):
+            pid += 1
+            leftover_numbers = [n for n in numbers if n != s and n != t]
+            var_map = {n: Variable('v%d' % i)
+                       for i, n in enumerate(leftover_numbers)}
+            var_map[s] = SOURCE_VAR
+            var_map[t] = TARGET_VAR
+            gp = GraphPattern(
+                tuple([tuple([var_map[i] for i in trip]) for trip in num_pat]))
+
+            # exclude patterns which are isomorphic to already generated ones
+            if exclude_isomorphic:
+                cgp = canonicalize(gp)
+                if cgp in canonicalized_patterns:
+                    igp = canonicalized_patterns[cgp]
+                    igp_numpat, igp_s, igp_t, igp_gp = igp
+                    logger.debug(
+                        'excluded isomorphic %s with ?s=%d, ?t=%d:\n'
+                        'isomorphic to %s with ?s=%d, ?t=%d:\n'
+                        '%sand\n%s',
+                        num_pat, s, t,
+                        igp_numpat, igp_s, igp_t,
+                        gp, igp_gp,
+                    )
+                    continue
+                else:
+                    canonicalized_patterns[cgp] = (num_pat, s, t, gp)
+                    gp = cgp
+            yield pid, gp
+    yield pid + 1, None
 
 
 def pattern_generator(
@@ -119,24 +290,31 @@ def pattern_generator(
 
 
 def main():
-    length = 3
-    # 3: 47478 (pcon, nej) of 6666891
-    # 4:
-    # 5:
+    length = 1
+    # len | pcon | nej | pcon, nej    | candidates     | candidates  |
+    #     |      |     | (canonical)  | (old method)   | (numerical) |
+    # ----+------+-----+--------------+----------------+-------------+
+    #   1 |    8 |  12 |           12 |             27 |          12 |
+    #   2 |  146 | 469 |          693 |           7750 |        1314 |
+    #   3 |      |     |        47478 |        6666891 |      151534 |
+    #   4 |      |     |              |    11671285626 |    20884300 |
+    #   5 |      |     |              | 34549552710596 |  3461471628 |
 
     gen_patterns = []
-    for n, (i, pattern) in enumerate(pattern_generator(length)):
+    i = 0
+    for n, (i, pattern) in enumerate(patterns(length, False, True)):
         print('%d: Pattern id %d: %s' % (n, i, pattern))
         gen_patterns.append((i, pattern))
-    patterns = set(gp for pid, gp in gen_patterns[:-1])
+    print(i)
+    _patterns = set(gp for pid, gp in gen_patterns[:-1])
 
     # testing flipped edges
-    for gp in patterns:
+    for gp in _patterns:
         for i in range(length):
             mod_gp = gp.flip_edge(i)
             # can happen that flipped edge was there already
             if len(mod_gp) == length:
-                assert canonicalize(mod_gp) in patterns
+                assert canonicalize(mod_gp) in _patterns
 
 
 if __name__ == '__main__':
