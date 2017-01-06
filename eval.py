@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 logger.info('init')
 
 
-DEBUG = False
+DEBUG = True
 HOLE = sys.maxint  # placeholder for holes in partial patterns
 
 # debug logging in this module is actually quite expensive (> 30 % of time). In
@@ -40,6 +40,9 @@ if not DEBUG:
 
 def numerical_patterns(
         length,
+        loops=True,
+        node_edge_joint=True,
+        p_connected=True,
         _partial_pattern=None,
         _pos=None,
         _var=1,
@@ -91,28 +94,49 @@ def numerical_patterns(
         # exclude multiple equivalent triples
         return
 
-    if i >= 1 and j == 2:
-        # we just completed a triple, check that it's connected
-        t = _partial_pattern[i]
-        for pt in _partial_pattern[:i]:
-            if t[0] in pt or t[1] in pt or t[2] in pt:
-                break
-        else:
-            # we're not connected, early terminate this
-            # This is safe as a later triple can't reconnect us anymore without
-            # an isomorphic, lower enumeration that would've been encountered
-            # before:
-            # say we have
-            #   abc xyz uvw
-            # with xyz not being connected yet and uvw or any later part
-            # connecting xyz back to abc. We can just use a breadth first search
-            # from abc via those connecting triples and re-label all encountered
-            # vars by breadth first search encountering. That re-labeling is
-            # guaranteed to forward connect and it will generate a smaller
-            # labelling than the current one.
+
+    # check if nodes and edges are disjoint
+    if not node_edge_joint:
+        flat_pp = [v for t in _partial_pattern for v in t]
+        end = i*3 + j + 1  # end including last var
+        nodes = set(flat_pp[0:end:3] + flat_pp[2:end:3])
+        edges = set(flat_pp[1:end:3])
+        if nodes & edges:
+            logger.debug(
+                'excluded node-edge-joined: %s', _partial_pattern[:i+1])
             return
 
-    if i >= length - 1 and j >= 2:
+    if j == 2:  # we just completed a triple
+        # check for loops if necessary
+        if not loops:
+            s, _, o = _partial_pattern[i]
+            if s == o:
+                logger.debug('excluded loop: %s', _partial_pattern[:i+1])
+                return
+
+        if i >= 1:  # we're in a follow-up triple (excluding first)
+            # check that it's connected
+            s, p, o = _partial_pattern[i]
+            for pt in _partial_pattern[:i]:
+                # loop over previous triples and check if current is connected
+                if s in pt or o in pt or (p_connected and p in pt):
+                    break
+            else:
+                # we're not connected, early terminate this
+                # This is safe as a later triple can't reconnect us anymore
+                # without an isomorphic, lower enumeration that would've been
+                # encountered before:
+                # say we have
+                #   abc xyz uvw
+                # with xyz not being connected yet and uvw or any later part
+                # connecting xyz back to abc. We can just use a breadth first
+                # search from abc via those connecting triples and re-label all
+                # encountered vars by breadth first search encountering. That
+                # re-labeling is guaranteed to forward connect and it will
+                # generate a smaller labelling than the current one.
+                return
+
+    if i == length - 1 and j == 2:
         # we're at the end of the pattern
         yield _partial_pattern
     else:
@@ -137,6 +161,9 @@ def numerical_patterns(
         for v in range(_star_var, _end_var + 1):
             for pattern in numerical_patterns(
                     length,
+                    loops=loops,
+                    node_edge_joint=node_edge_joint,
+                    p_connected=p_connected,
                     _partial_pattern=_partial_pattern,
                     _pos=(i, j),
                     _var=v
@@ -146,6 +173,9 @@ def numerical_patterns(
 
 def patterns(
         length,
+        loops=True,
+        node_edge_joint=True,
+        p_connected=True,
         exclude_isomorphic=True,
         count_candidates_only=False,
 ):
@@ -156,7 +186,12 @@ def patterns(
     canonicalized_patterns = {}
 
     pid = -1
-    for c, num_pat in enumerate(numerical_patterns(length)):
+    for c, num_pat in enumerate(numerical_patterns(
+            length,
+            loops=loops,
+            node_edge_joint=node_edge_joint,
+            p_connected=p_connected,
+    )):
         numbers = sorted(set([v for t in num_pat for v in t]))
         # var_map = {i: '?v%d' % i for i in numbers}
         # pattern = GraphPattern(
@@ -291,6 +326,7 @@ def pattern_generator(
 
 def main():
     length = 1
+    canonical = True
     # len | pcon | nej | pcon, nej    | candidates     | candidates  |
     #     |      |     | (canonical)  | (old method)   | (numerical) |
     # ----+------+-----+--------------+----------------+-------------+
@@ -301,20 +337,34 @@ def main():
     #   5 |      |     |              | 34549552710596 |  3461471628 |
 
     gen_patterns = []
+    n = 0
     i = 0
-    for n, (i, pattern) in enumerate(patterns(length, False, True)):
+    for n, (i, pattern) in enumerate(patterns(
+            length,
+            loops=False,
+            node_edge_joint=False,
+            p_connected=False,
+            exclude_isomorphic=canonical,
+            count_candidates_only=False,
+    )):
         print('%d: Pattern id %d: %s' % (n, i, pattern))
         gen_patterns.append((i, pattern))
-    print(i)
+    print('Number of pattern candidates: %d' % i)
+    print('Number of patterns: %d' % n)
     _patterns = set(gp for pid, gp in gen_patterns[:-1])
 
-    # testing flipped edges
-    for gp in _patterns:
-        for i in range(length):
-            mod_gp = gp.flip_edge(i)
-            # can happen that flipped edge was there already
-            if len(mod_gp) == length:
-                assert canonicalize(mod_gp) in _patterns
+    # testing flipped edges (only works if we're working with canonicals)
+    if canonical:
+        for gp in _patterns:
+            for i in range(length):
+                mod_gp = gp.flip_edge(i)
+                # can happen that flipped edge was there already
+                if len(mod_gp) == length:
+                    cmod_pg = canonicalize(mod_gp)
+                    assert cmod_pg in _patterns, \
+                        'mod_gp: %r\ncanon: %r\n_patterns: %r' % (
+                            mod_gp, cmod_pg, _patterns
+                        )
 
 
 if __name__ == '__main__':
