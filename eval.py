@@ -176,6 +176,7 @@ def patterns(
         loops=True,
         node_edge_joint=True,
         p_connected=True,
+        source_target_edges=True,
         exclude_isomorphic=True,
         count_candidates_only=False,
 ):
@@ -192,7 +193,16 @@ def patterns(
             node_edge_joint=node_edge_joint,
             p_connected=p_connected,
     )):
-        numbers = sorted(set([v for t in num_pat for v in t]))
+        flat_num_pat = [v for t in num_pat for v in t]
+        all_numbers = set(flat_num_pat)
+
+        if source_target_edges:
+            all_numbers = sorted(all_numbers)
+            numbers = all_numbers
+        else:
+            numbers = sorted(all_numbers - set(flat_num_pat[1::3]))
+            all_numbers = sorted(all_numbers)
+
         # var_map = {i: '?v%d' % i for i in numbers}
         # pattern = GraphPattern(
         #     tuple([tuple([var_map[i] for i in t]) for t in numerical_repr]))
@@ -210,7 +220,9 @@ def patterns(
 
         for s, t in permutations(numbers, 2):
             pid += 1
-            leftover_numbers = [n for n in numbers if n != s and n != t]
+            # source and target are mapped to numbers s and t
+            # re-enumerate the leftover numbers to close "holes"
+            leftover_numbers = [n for n in all_numbers if n != s and n != t]
             var_map = {n: Variable('v%d' % i)
                        for i, n in enumerate(leftover_numbers)}
             var_map[s] = SOURCE_VAR
@@ -245,6 +257,7 @@ def pattern_generator(
         loops=True,
         node_edge_joint=True,
         p_connected=True,
+        source_target_edges=True,
         exclude_isomorphic=True,
 ):
     canonicalized_patterns = {}
@@ -344,6 +357,7 @@ def main():
             loops=False,
             node_edge_joint=False,
             p_connected=False,
+            source_target_edges=False,
             exclude_isomorphic=canonical,
             count_candidates_only=False,
     )):
@@ -362,8 +376,8 @@ def main():
                 if len(mod_gp) == length:
                     cmod_pg = canonicalize(mod_gp)
                     assert cmod_pg in _patterns, \
-                        'mod_gp: %r\ncanon: %r\n_patterns: %r' % (
-                            mod_gp, cmod_pg, _patterns
+                        'gp: %smod_gp: %scanon: %s_patterns: %r...' % (
+                            gp, mod_gp, cmod_pg, list(_patterns)[:20]
                         )
 
 
