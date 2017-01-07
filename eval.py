@@ -12,6 +12,7 @@ from itertools import permutations
 from itertools import product
 import sys
 
+import networkx as nx
 from rdflib import Variable
 from scipy.special import binom
 from scipy.misc import comb
@@ -21,6 +22,7 @@ from graph_pattern import SOURCE_VAR
 from graph_pattern import TARGET_VAR
 from graph_pattern import GraphPattern
 from graph_pattern import canonicalize
+from graph_pattern import to_nx_graph
 
 logger = logging.getLogger(__name__)
 logger.info('init')
@@ -42,7 +44,6 @@ def numerical_patterns(
         length,
         loops=True,
         node_edge_joint=True,
-        p_connected=True,
         _partial_pattern=None,
         _pos=None,
         _var=1,
@@ -119,7 +120,11 @@ def numerical_patterns(
             s, p, o = _partial_pattern[i]
             for pt in _partial_pattern[:i]:
                 # loop over previous triples and check if current is connected
-                if s in pt or o in pt or (p_connected and p in pt):
+                if s in pt or p in pt or o in pt:
+                    # for p_only_connected it's possible to become
+                    # n_connected again later:
+                    # 123 145 627 685
+                    #          ^    ^
                     break
             else:
                 # we're not connected, early terminate this
@@ -163,7 +168,6 @@ def numerical_patterns(
                     length,
                     loops=loops,
                     node_edge_joint=node_edge_joint,
-                    p_connected=p_connected,
                     _partial_pattern=_partial_pattern,
                     _pos=(i, j),
                     _var=v
@@ -175,7 +179,7 @@ def patterns(
         length,
         loops=True,
         node_edge_joint=True,
-        p_connected=True,
+        p_only_connected=True,
         source_target_edges=True,
         exclude_isomorphic=True,
         count_candidates_only=False,
@@ -191,10 +195,20 @@ def patterns(
             length,
             loops=loops,
             node_edge_joint=node_edge_joint,
-            p_connected=p_connected,
     )):
         flat_num_pat = [v for t in num_pat for v in t]
         all_numbers = set(flat_num_pat)
+
+        if not p_only_connected:
+            # Numerical patterns are always connected, but they might be
+            # p_only_connected (e.g., 123 425).
+            # Check that the pattern isn't p_only_connected, meaning that it's
+            # also connected by nodes (e.g., 123 325).
+            # Note that in case of node_edge_joint 123 245 is also considered
+            # p_only_connected.
+            if not nx.is_connected(to_nx_graph(num_pat)):
+                logger.debug('excluded %d: not node connected:\n%s', c, num_pat)
+                continue
 
         if source_target_edges:
             all_numbers = sorted(all_numbers)
@@ -203,9 +217,6 @@ def patterns(
             numbers = sorted(all_numbers - set(flat_num_pat[1::3]))
             all_numbers = sorted(all_numbers)
 
-        # var_map = {i: '?v%d' % i for i in numbers}
-        # pattern = GraphPattern(
-        #     tuple([tuple([var_map[i] for i in t]) for t in numerical_repr]))
         if count_candidates_only:
             l = len(numbers)
             perms = l * (l-1)
@@ -256,7 +267,7 @@ def pattern_generator(
         length,
         loops=True,
         node_edge_joint=True,
-        p_connected=True,
+        p_only_connected=True,
         source_target_edges=True,
         exclude_isomorphic=True,
 ):
@@ -307,7 +318,7 @@ def pattern_generator(
             continue
 
         # check that the pattern is connected
-        if not gp.is_connected(via_edges=p_connected):
+        if not gp.is_connected(via_edges=p_only_connected):
             logger.debug('excluded %d: not connected:\n%s', pid, gp)
             continue
 
@@ -338,16 +349,28 @@ def pattern_generator(
 
 
 def main():
-    length = 1
+    # len | pcon | nej | all          | candidates (all)  | candidates (all)  |
+    #     |      |     | (canonical)  | (old method)      | (numerical)       |
+    # ----+------+-----+--------------+-------------------+-------------------+
+    #   1 |    8 |  12 |           12 |                27 |                12 |
+    #   2 |  146 | 469 |          693 |              7750 |              1314 |
+    #   3 |      |     |        47478 |           6666891 |            151534 |
+    #   4 |      |     |              |       11671285626 |          20884300 |
+    #   5 |      |     |              |    34549552710596 |        3461471628 |
+
+    # len | typical     | candidates     | candidates  |
+    #     | (canonical) | (old method)   | (numerical) |
+    # ----+-------------+----------------+-------------+
+    #   1 |           2 |             27 |           2 |
+    #   2 |          28 |           7750 |          54 |
+    #   3 |         486 |        6666891 |        1614 |
+    #   4 |       10374 |    11671285626 |       59654 |
+    #   5 |             | 34549552710596 |     2707960 |
+
+    # typical above means none of (loops, nej, pcon, source_target_edges)
+
+    length = 5
     canonical = True
-    # len | pcon | nej | pcon, nej    | candidates     | candidates  |
-    #     |      |     | (canonical)  | (old method)   | (numerical) |
-    # ----+------+-----+--------------+----------------+-------------+
-    #   1 |    8 |  12 |           12 |             27 |          12 |
-    #   2 |  146 | 469 |          693 |           7750 |        1314 |
-    #   3 |      |     |        47478 |        6666891 |      151534 |
-    #   4 |      |     |              |    11671285626 |    20884300 |
-    #   5 |      |     |              | 34549552710596 |  3461471628 |
 
     gen_patterns = []
     n = 0
@@ -356,7 +379,7 @@ def main():
             length,
             loops=False,
             node_edge_joint=False,
-            p_connected=False,
+            p_only_connected=False,
             source_target_edges=False,
             exclude_isomorphic=canonical,
             count_candidates_only=False,
