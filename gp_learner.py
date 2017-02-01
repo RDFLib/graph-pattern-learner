@@ -364,6 +364,12 @@ def _mutate_merge_var_helper(vars_):
 
 
 def mutate_merge_var_mix(child):
+    """Merges two variables into one.
+
+    Considers both node variables and edge variables together.
+    It is possible to merge an edge and a node too.
+    Randomly chooses a variable to replace and a variable to merge into.
+    """
     vars_ = child.vars_in_graph
     rand_vars, merge_able_vars = _mutate_merge_var_helper(vars_)
 
@@ -377,6 +383,12 @@ def mutate_merge_var_mix(child):
 
 
 def mutate_merge_var_sep(child):
+    """Merges two variables into one.
+
+    Considers the node variables and edge variables separately.
+    Either merges 2 node variables or 2 edge variable, depending on a random
+    choice.Randomly chooses a variable to replace and a variable to merge into.
+    """
     node_vars = {n for n in child.nodes if isinstance(n, Variable)}
     rand_node_vars, merge_able_node_vars = _mutate_merge_var_helper(node_vars)
 
@@ -414,6 +426,13 @@ def mutate_del_triple(child):
 
 
 def mutate_expand_node(child, pb_en_out_link):
+    """Expands a random node of the pattern by adding a new triple to it.
+
+    The variables to be attached to this node, to form a triple, are chosen
+    randomly.Depending on the probability, makes it an outgoing edge or an
+    incoming edge.
+    :return: The modified child, with the added triple.
+    """
     # TODO: can maybe be improved by sparqling
     nodes = list(child.nodes)
     node = random.choice(nodes)
@@ -427,6 +446,11 @@ def mutate_expand_node(child, pb_en_out_link):
 
 
 def mutate_add_edge(child):
+    """Chooses any 2 nodes from the pattern, and adds an edge between them.
+
+    The edge is labeled with a new randomly chosen variable.
+    :return: Modified child, with the new edge
+    """
     # TODO: can maybe be improved by sparqling
     nodes = list(child.nodes)
     if len(nodes) < 2:
@@ -438,6 +462,12 @@ def mutate_add_edge(child):
 
 
 def mutate_increase_dist(child):
+    """increases distance between source and target by one hop.
+
+    Adds a triple, to either the source var or the target var.
+    Interchange the new node with source/target variable to increase distance.
+    :return: The modified child, with the new triple.
+    """
     if not child.complete():
         return child
     var_node = gen_random_var()
@@ -497,6 +527,10 @@ def mutate_fix_var(
         sample_n=config.MUTPB_FV_SAMPLE_MAXN,
         limit=config.MUTPB_FV_QUERY_LIMIT,
 ):
+    """Chooses a random variable from the pattern(node or edge).
+
+    Substitutes it with all possible fixed variables.
+    """
     assert isinstance(child, GraphPattern)
     assert isinstance(gtp_scores, GTPScores)
 
