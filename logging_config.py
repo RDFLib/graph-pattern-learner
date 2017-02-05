@@ -191,7 +191,7 @@ logging_config = {
     # 'loggers': {}  # all other loggers except for root
 }
 
-if os.uname()[0] == 'Darwin':
+if os.name == 'posix' and os.uname()[0] == 'Darwin':
     logging_config['formatters']['tts_formatter'] = {
         'format': format_str_tts
     }
