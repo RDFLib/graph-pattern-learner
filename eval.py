@@ -191,6 +191,8 @@ def patterns(
     """Takes a numerical pattern and generates actual patterns from it."""
     assert not count_candidates_only or not exclude_isomorphic, \
         'count_candidates_only cannot be used with isomorphism check'
+    assert not source_target_edges or node_edge_joint, \
+        'source_target_edges cannot be used without node_edge_joint'
 
     canonicalized_patterns = {}
 
@@ -274,25 +276,40 @@ def pattern_generator(
         p_only_connected=True,
         source_target_edges=True,
         exclude_isomorphic=True,
+        count_candidates_only=False,
 ):
+    assert not source_target_edges or node_edge_joint, \
+        'source_target_edges cannot be used without node_edge_joint'
     canonicalized_patterns = {}
 
-    # To be connected there are max 3 + 2 + 2 + 2 + ... vars for the triples.
-    # The first can be 3 different ones (including ?source and ?target, then
-    # in each of the following triples at least one var has to be an old one
-    possible_vars = [Variable('v%d' % i) for i in range((2 * length) - 1)]
-    possible_vars += [SOURCE_VAR, TARGET_VAR]
+    if node_edge_joint:
+        # To be connected there are max 3 + 2 + 2 + 2 + ... vars for triples.
+        # The first can be 3 different ones (including ?source and ?target, then
+        # in each of the following triples at least one var has to be an old one
+        possible_vars = [Variable('v%d' % i) for i in range((2 * length) - 1)]
+        possible_nodes = possible_vars + [SOURCE_VAR, TARGET_VAR]
+        if source_target_edges:
+            possible_edges = possible_nodes
+        else:
+            possible_edges = possible_vars
+    else:
+        possible_var_nodes = [Variable('n%d' % i) for i in range(length - 1)]
+        possible_nodes = possible_var_nodes + [SOURCE_VAR, TARGET_VAR]
+        possible_edges = [Variable('e%d' % i) for i in range(length)]
 
     possible_triples = [
         (s, p, o)
-        for s in possible_vars
-        for p in possible_vars
-        for o in possible_vars
+        for s in possible_nodes
+        for p in possible_edges
+        for o in possible_nodes
     ]
 
     n_patterns = binom(len(possible_triples), length)
     logger.info(
         'generating %d possible patterns of length %d', n_patterns, length)
+    if count_candidates_only:
+        yield (n_patterns, None)
+        return
 
     i = 0
     pid = 0
@@ -304,10 +321,19 @@ def pattern_generator(
             logger.debug(
                 'excluded %d: source or target missing: %s', pid, gp)
             continue
+        nodes = sorted(gp.nodes - {SOURCE_VAR, TARGET_VAR})
+        edges = sorted(gp.edges - {SOURCE_VAR, TARGET_VAR})
         vars_ = sorted(gp.vars_in_graph - {SOURCE_VAR, TARGET_VAR})
 
-        # check there are no skipped nodes, e.g., link to n2 picked but no n1
-        if vars_ != possible_vars[:len(vars_)]:
+        # check there are no skipped variables (nodes or edges)
+        # noinspection PyUnboundLocalVariable
+        if (
+                (node_edge_joint and vars_ != possible_vars[:len(vars_)]) or
+                (not node_edge_joint and (
+                    nodes != possible_var_nodes[:len(nodes)] or
+                    edges != possible_edges[:len(edges)]
+                ))
+        ):
             logger.debug('excluded %d: skipped var: %s', pid, gp)
             continue
 
@@ -365,11 +391,11 @@ def main():
     # len | typical     | candidates     | candidates  |
     #     | (canonical) | (old method)   | (numerical) |
     # ----+-------------+----------------+-------------+
-    #   1 |           2 |             27 |           2 |
-    #   2 |          28 |           7750 |          54 |
-    #   3 |         486 |        6666891 |        1614 |
-    #   4 |       10374 |    11671285626 |       59654 |
-    #   5 |             | 34549552710596 |     2707960 |
+    #   1 |           2 |              4 |           2 |
+    #   2 |          28 |            153 |          54 |
+    #   3 |         486 |          17296 |        1614 |
+    #   4 |       10374 |        3921225 |       59654 |
+    #   5 |             |     1488847536 |     2707960 |
 
     # typical above means none of (loops, nej, pcon, source_target_edges)
 
