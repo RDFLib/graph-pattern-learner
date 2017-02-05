@@ -522,9 +522,9 @@ def mutate_fix_var(
         timeout,
         gtp_scores,
         child,
-        gtp_sample_n=config.MUTPB_FV_RGTP_SAMPLE_N,
+        gtp_sample_max_n=config.MUTPB_FV_RGTP_SAMPLE_N,
         rand_var=None,
-        sample_n=config.MUTPB_FV_SAMPLE_MAXN,
+        sample_max_n=config.MUTPB_FV_SAMPLE_MAXN,
         limit=config.MUTPB_FV_QUERY_LIMIT,
 ):
     """Chooses a random variable from the pattern(node or edge).
@@ -537,10 +537,11 @@ def mutate_fix_var(
     # The further we get, the less gtps are remaining. Sampling too many (all)
     # of them might hurt as common substitutions (> limit ones) which are dead
     # ends could cover less common ones that could actually help
-    gtp_sample_n = min(gtp_sample_n, int(gtp_scores.remaining_gain))
-    gtp_sample_n = random.randint(1, gtp_sample_n)
+    gtp_sample_max_n = min(gtp_sample_max_n, int(gtp_scores.remaining_gain))
+    gtp_sample_max_n = random.randint(1, gtp_sample_max_n)
 
-    ground_truth_pairs = gtp_scores.remaining_gain_sample_gtps(n=gtp_sample_n)
+    ground_truth_pairs = gtp_scores.remaining_gain_sample_gtps(
+        max_n=gtp_sample_max_n)
     rand_vars = child.vars_in_graph - {SOURCE_VAR, TARGET_VAR}
     if len(rand_vars) < 1:
         return [child]
@@ -561,13 +562,13 @@ def mutate_fix_var(
         return [child]
     # randomly pick n of the substitutions with a prob ~ to their counts
     items, counts = zip(*substitution_counts.most_common())
-    substs = sample_from_list(items, counts, sample_n)
+    substs = sample_from_list(items, counts, sample_max_n)
     logger.info(
         'fixed variable %s in %sto:\n %s\n<%d out of:\n%s\n',
         rand_var.n3(),
         child,
         '\n '.join([subst.n3() for subst in substs]),
-        sample_n,
+        sample_max_n,
         '\n'.join([' %d: %s' % (c, v.n3())
                    for v, c in substitution_counts.most_common()]),
     )

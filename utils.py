@@ -247,8 +247,9 @@ def sample_from_list(l, probs, max_n=None):
     """Sample list according to probs.
 
     This method draws up to max_n items from l using the given list of probs as
-    sample probabilities. max_n defaults to len(l) if not specified. If less
-    than max_n probabilities are > 0 only those items are returned.
+    sample probabilities. max_n defaults to len(l) if not specified. Items with
+    probability 0 are never sampled, so if less than max_n probabilities are > 0
+    only those items are returned.
 
     :param l: list from which to draw items.
     :param probs: List of probabilities to draw items. Normalized by sum(probs).
