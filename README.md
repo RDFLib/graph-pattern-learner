@@ -46,6 +46,7 @@ Afterwards, to setup the virtual environment and install all dependencies in it:
 
     virtualenv venv &&
     . venv/bin/activate &&
+    pip install --upgrade pip setuptools &&
     pip install -r requirements.txt &&
     deactivate
 
