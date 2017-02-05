@@ -16,6 +16,10 @@ import networkx as nx
 from rdflib import Variable
 from scipy.special import binom
 from scipy.misc import comb
+from scoop.futures import map as parallel_map
+import scoop
+import scoop.futures
+from splendid import chunker
 
 from logging_config import logging
 from graph_pattern import SOURCE_VAR
@@ -28,7 +32,7 @@ logger = logging.getLogger(__name__)
 logger.info('init')
 
 
-DEBUG = True
+DEBUG = False
 HOLE = sys.maxint  # placeholder for holes in partial patterns
 
 # debug logging in this module is actually quite expensive (> 30 % of time). In
@@ -372,23 +376,44 @@ def main():
     length = 5
     canonical = True
 
-    gen_patterns = []
+    _patterns = set()
     n = 0
     i = 0
-    for n, (i, pattern) in enumerate(patterns(
-            length,
-            loops=False,
-            node_edge_joint=False,
-            p_only_connected=False,
-            source_target_edges=False,
-            exclude_isomorphic=canonical,
-            count_candidates_only=False,
-    )):
-        print('%d: Pattern id %d: %s' % (n, i, pattern))
-        gen_patterns.append((i, pattern))
+
+    pg = patterns(
+        length,
+        loops=False,
+        node_edge_joint=False,
+        p_only_connected=False,
+        source_target_edges=False,
+        exclude_isomorphic=canonical and not scoop.IS_RUNNING,
+        count_candidates_only=False,
+    )
+
+    if canonical and scoop.IS_RUNNING:
+        # Graph pattern isomorphism checking is what takes by far the longest.
+        # run canonicalization in parallel
+        # chunks used for efficiency and to hinder parallel_map from trying to
+        # eat up all candidates first
+        for chunk in chunker(pg, 10000):
+            cgps = parallel_map(
+                lambda res: (res[0], canonicalize(res[1]) if res[1] else None),
+                chunk
+            )
+            for i, pattern in cgps:
+                if pattern not in _patterns:
+                    print('%d: Pattern id %d: %s' % (n, i, pattern))
+                    _patterns.add(pattern)
+                    n += 1
+    else:
+        # run potential canonicalization inline
+        for n, (i, pattern) in enumerate(pg):
+            print('%d: Pattern id %d: %s' % (n, i, pattern))
+            _patterns.add(pattern)
+    # last res of pg is (i, None)
+    _patterns.remove(None)
     print('Number of pattern candidates: %d' % i)
     print('Number of patterns: %d' % n)
-    _patterns = set(gp for pid, gp in gen_patterns[:-1])
 
     # testing flipped edges (only works if we're working with canonicals)
     if canonical:
