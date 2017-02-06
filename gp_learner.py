@@ -386,6 +386,7 @@ def _mutate_merge_var_helper(vars_):
 
 
 def mutate_merge_var_mix(child):
+    """Merges two variables into one, potentially merging node and edge vars."""
     vars_ = child.vars_in_graph
     rand_vars, merge_able_vars = _mutate_merge_var_helper(vars_)
 
@@ -399,6 +400,11 @@ def mutate_merge_var_mix(child):
 
 
 def mutate_merge_var_sep(child):
+    """Merges two variables into one, won't merge node and edge vars.
+
+    Considers the node variables and edge variables separately.
+    Depending on availability either merges 2 node variables or 2 edge variable.
+    """
     node_vars = {n for n in child.nodes if isinstance(n, Variable)}
     rand_node_vars, merge_able_node_vars = _mutate_merge_var_helper(node_vars)
 
@@ -436,6 +442,14 @@ def mutate_del_triple(child):
 
 
 def mutate_expand_node(child, pb_en_out_link):
+    """Expands a random node by adding a new var-only triple to it.
+
+    Randomly selects a node. Then (depending on the probability pb_en_out_link)
+    adds an outgoing or incoming triple with two new vars to it.
+
+    :arg pb_en_out_link: Probability to create an outgoing triple.
+    :return: A child with the added outgoing/incoming triple.
+    """
     # TODO: can maybe be improved by sparqling
     nodes = list(child.nodes)
     node = random.choice(nodes)
@@ -449,6 +463,13 @@ def mutate_expand_node(child, pb_en_out_link):
 
 
 def mutate_add_edge(child):
+    """Adds an edge between 2 randomly selected nodes.
+
+    Randomly selects two nodes, then adds a new triple (n1, e, n2), where e is
+    a new variable.
+
+    :return: A child with the added edge.
+    """
     # TODO: can maybe be improved by sparqling
     nodes = list(child.nodes)
     if len(nodes) < 2:
@@ -460,6 +481,13 @@ def mutate_add_edge(child):
 
 
 def mutate_increase_dist(child):
+    """Increases the distance between ?source and ?target by one hop.
+
+    Randomly adds a var only triple to the ?source or ?target var. Then swaps
+    the new node with ?source/?target to increase the distance by one hop.
+
+    :return: A child with increased distance between ?source and ?target.
+    """
     if not child.complete():
         return child
     var_node = gen_random_var()
@@ -477,6 +505,13 @@ def mutate_increase_dist(child):
 
 
 def mutate_fix_var_filter(item_counts):
+    """Filters results for fix var mutation.
+
+    Excludes:
+    - too long literals
+    - URIs with encoding errors (real world!)
+    - BNode results (they will not be fixed but stay SPARQL vars)
+    """
     assert isinstance(item_counts, Counter)
     for i in list(item_counts.keys()):
         if isinstance(i, Literal):
@@ -514,21 +549,59 @@ def mutate_fix_var(
         timeout,
         gtp_scores,
         child,
-        gtp_sample_n=config.MUTPB_FV_RGTP_SAMPLE_N,
+        gtp_sample_max_n=config.MUTPB_FV_RGTP_SAMPLE_N,
         rand_var=None,
-        sample_n=config.MUTPB_FV_SAMPLE_MAXN,
+        sample_max_n=config.MUTPB_FV_SAMPLE_MAXN,
         limit=config.MUTPB_FV_QUERY_LIMIT,
 ):
+    """Finds possible fixations for a randomly selected variable of the pattern.
+
+    This is the a very important mutation of the gp learner, as it is the main
+    source of actually gaining information from the SPARQL endpoint.
+
+    The outline of the mutation is as follows:
+    - If not passed in, randomly selects a variable (rand_var) of the pattern
+      (node or edge var, excluding ?source and ?target).
+    - Randomly selects a subset of up to gtp_sample_max_n GTPs with
+      probabilities according to their remaining gains. The number of GTPs
+      picked is randomized (see below).
+    - Issues SPARQL queries to find possible fixations for the selected variable
+      under the previously selected GTPs subset. Counts the fixation's
+      occurrences wrt. the GTPs and sorts the result descending by these counts.
+    - Limits the result rows to deal with potential long-tails.
+    - Filters the resulting rows with mutate_fix_var_filter.
+    - From the limited, filtered result rows randomly selects up to sample_max_n
+      candidate fixations with probabilities according to their counts.
+    - For each candidate fixation returns a child in which rand_var is replaced
+      with the candidate fixation.
+
+    The reasons for fixing rand_var based on a randomly sized subset of GTPs
+    are efficiency and shadowing problems with common long-tails. Due to the
+    later imposed limit (which is vital in real world use-cases),
+    a few remaining GTPs that share more than `limit` potential fixations (so
+    have a common long-tail) could otherwise hide solutions for other
+    remaining GTPs. This can be the case if these common fixations have low
+    fitness. By randomizing the subset size, we will eventually (and more
+    likely) select other combinations of remaining GTPs.
+
+    :param gtp_sample_max_n: Maximum GTPs subset size to base fixations on.
+    :param rand_var: If given uses this variable instead of a random one.
+    :param sample_max_n: Maximum number of children.
+    :param limit: SPARQL limit for the top-k result rows.
+    :return: A list of children in which the selected variable is substituted
+        with fixation candidates wrt. GTPs.
+    """
     assert isinstance(child, GraphPattern)
     assert isinstance(gtp_scores, GTPScores)
 
     # The further we get, the less gtps are remaining. Sampling too many (all)
     # of them might hurt as common substitutions (> limit ones) which are dead
     # ends could cover less common ones that could actually help
-    gtp_sample_n = min(gtp_sample_n, int(gtp_scores.remaining_gain))
-    gtp_sample_n = random.randint(1, gtp_sample_n)
+    gtp_sample_max_n = min(gtp_sample_max_n, int(gtp_scores.remaining_gain))
+    gtp_sample_max_n = random.randint(1, gtp_sample_max_n)
 
-    ground_truth_pairs = gtp_scores.remaining_gain_sample_gtps(n=gtp_sample_n)
+    ground_truth_pairs = gtp_scores.remaining_gain_sample_gtps(
+        max_n=gtp_sample_max_n)
     rand_vars = child.vars_in_graph - {SOURCE_VAR, TARGET_VAR}
     if len(rand_vars) < 1:
         return [child]
@@ -549,13 +622,13 @@ def mutate_fix_var(
         return [child]
     # randomly pick n of the substitutions with a prob ~ to their counts
     items, counts = zip(*substitution_counts.most_common())
-    substs = sample_from_list(items, counts, sample_n)
+    substs = sample_from_list(items, counts, sample_max_n)
     logger.info(
         'fixed variable %s in %sto:\n %s\n<%d out of:\n%s\n',
         rand_var.n3(),
         child,
         '\n '.join([subst.n3() for subst in substs]),
-        sample_n,
+        sample_max_n,
         '\n'.join([' %d: %s' % (c, v.n3())
                    for v, c in substitution_counts.most_common()]),
     )

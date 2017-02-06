@@ -52,19 +52,19 @@ class GTPScores(object):
                     self.gtp_max_precisions[gtp] = precision
         return precision_gain
 
-    def remaining_gain_sample_gtps(self, n=None):
+    def remaining_gain_sample_gtps(self, max_n=None):
         """Sample ground truth pairs according to remaining gains.
 
-        This method draws up to n ground truth pairs using their remaining gains
-        as sample probabilities. If less than n probabilities are > 0 it draws
-        less gtps.
+        This method draws up to max_n ground truth pairs using their remaining
+        gains as sample probabilities. GTPs with remaining gain of 0 are never
+        returned, so if less than n probabilities are > 0 it draws less gtps.
 
-        :param n: Up to n items to sample.
+        :param max_n: Up to n items to sample.
         :return: list of ground truth pairs sampled according to their remaining
             gains in gtp_scores with max length of n.
         """
         gtps, gains = zip(*self.get_remaining_gains().items())
-        return sample_from_list(gtps, gains, n)
+        return sample_from_list(gtps, gains, max_n)
 
     def __sub__(self, other):
         if not isinstance(other, GTPScores):

@@ -169,14 +169,13 @@ def test_simplify_pattern():
     assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
 
     # counter example of an advanced but restricting pattern:
-    gp = gp + [
+    gp += [
         (SOURCE_VAR, Variable('v3'), Variable('v4')),
         (Variable('v5'), Variable('v6'), Variable('v4')),
         (Variable('v4'), Variable('v7'), Variable('v8')),
         (TARGET_VAR, Variable('v3'), SOURCE_VAR),
         (dbp['City'], Variable('v6'), dbp['Country']),
         (dbp['Country'], Variable('v8'), dbp['City']),
-
     ]
     res = mutate_simplify_pattern(gp)
     assert res == gp, 'was simplified (bad):\n%s' % res.to_sparql_select_query()
@@ -221,14 +220,14 @@ def test_simplify_pattern():
 
 def test_remaining_gain_sample_gtps():
     n = len(ground_truth_pairs)
-    gtps = sorted(gtp_scores.remaining_gain_sample_gtps(n=n))
+    gtps = sorted(gtp_scores.remaining_gain_sample_gtps(max_n=n))
     assert len(gtps) == n
     # if we draw everything the results should always be everything
-    assert gtps == sorted(gtp_scores.remaining_gain_sample_gtps(n=n))
+    assert gtps == sorted(gtp_scores.remaining_gain_sample_gtps(max_n=n))
     # if we don't draw everything it's quite unlikely we get the same result
-    gtps = gtp_scores.remaining_gain_sample_gtps(n=5)
+    gtps = gtp_scores.remaining_gain_sample_gtps(max_n=5)
     assert len(gtps) == 5
-    assert gtps != gtp_scores.remaining_gain_sample_gtps(n=5)
+    assert gtps != gtp_scores.remaining_gain_sample_gtps(max_n=5)
 
     # make sure we never get items that are fully covered already
     gtp_scores.gtp_max_precisions[ground_truth_pairs[0]] = 1
@@ -236,7 +235,7 @@ def test_remaining_gain_sample_gtps():
     k = 100
     n = 128
     for i in range(k):
-        c.update(gtp_scores.remaining_gain_sample_gtps(n=n))
+        c.update(gtp_scores.remaining_gain_sample_gtps(max_n=n))
     assert ground_truth_pairs[0] not in c
     assert sum(c.values()) == k * n
     # count how many aren't in gtps
@@ -260,7 +259,7 @@ def test_remaining_gain_sample_gtps():
     assert gtpe_scores.remaining_gain == 1
     c = Counter()
     for i in range(100):
-        c.update(gtpe_scores.remaining_gain_sample_gtps(n=1))
+        c.update(gtpe_scores.remaining_gain_sample_gtps(max_n=1))
     assert len(c) == 2
     assert sum(c.values()) == 100
     assert (binom.pmf(c[high_prob], 100, .9) > 0.001 and
