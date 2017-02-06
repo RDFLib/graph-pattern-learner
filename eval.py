@@ -27,6 +27,8 @@ from graph_pattern import TARGET_VAR
 from graph_pattern import GraphPattern
 from graph_pattern import canonicalize
 from graph_pattern import to_nx_graph
+from utils import exception_stack_catcher
+from utils import log_all_exceptions
 
 logger = logging.getLogger(__name__)
 logger.info('init')
@@ -378,6 +380,8 @@ def pattern_generator(
     yield (n_patterns, None)
 
 
+@log_all_exceptions(logger)
+@exception_stack_catcher
 def main():
     # len | pcon | nej | all          | candidates (all)  | candidates (all)  |
     #     |      |     | (canonical)  | (old method)      | (numerical)       |
