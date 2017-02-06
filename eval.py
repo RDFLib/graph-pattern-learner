@@ -407,7 +407,7 @@ def main():
     canonical = True
 
     _patterns = set()
-    n = 0
+    n = -1
     i = 0
 
     pg = patterns(
@@ -432,9 +432,9 @@ def main():
             )
             for i, pattern in cgps:
                 if pattern not in _patterns:
+                    n += 1
                     print('%d: Pattern id %d: %s' % (n, i, pattern))
                     _patterns.add(pattern)
-                    n += 1
     else:
         # run potential canonicalization inline
         for n, (i, pattern) in enumerate(pg):
