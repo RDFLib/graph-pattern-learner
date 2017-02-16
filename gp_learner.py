@@ -441,24 +441,38 @@ def mutate_del_triple(child):
         return new_child
 
 
-def mutate_expand_node(child, pb_en_out_link):
-    """Expands a random node by adding a new var-only triple to it.
+def _mutate_expand_node_helper(node, pb_en_out_link=config.MUTPB_EN_OUT_LINK):
+    """Adds a new var-only triple to node.
 
-    Randomly selects a node. Then (depending on the probability pb_en_out_link)
-    adds an outgoing or incoming triple with two new vars to it.
-
-    :arg pb_en_out_link: Probability to create an outgoing triple.
-    :return: A child with the added outgoing/incoming triple.
+    :param pb_en_out_link: Probability to create an outgoing triple.
+    :return: The new triple, node and var
     """
-    # TODO: can maybe be improved by sparqling
-    nodes = list(child.nodes)
-    node = random.choice(nodes)
     var_edge = gen_random_var()
     var_node = gen_random_var()
     if random.random() < pb_en_out_link:
         new_triple = (node, var_edge, var_node)
     else:
         new_triple = (var_node, var_edge, node)
+    return new_triple, var_node, var_edge
+
+
+def mutate_expand_node(
+        child, node=None, pb_en_out_link=config.MUTPB_EN_OUT_LINK):
+    """Expands a random node by adding a new var-only triple to it.
+
+    Randomly selects a node. Then adds an outgoing or incoming triple with two
+    new vars to it.
+
+    :param child: The GraphPattern to expand a node in.
+    :param node: If given the node to expand, otherwise
+    :param pb_en_out_link: Probability to create an outgoing triple.
+    :return: A child with the added outgoing/incoming triple.
+    """
+    # TODO: can maybe be improved by sparqling
+    if not node:
+        nodes = list(child.nodes)
+        node = random.choice(nodes)
+    new_triple, _, _ = _mutate_expand_node_helper(node, pb_en_out_link)
     return child + (new_triple,)
 
 
@@ -742,7 +756,6 @@ def mutate(
         pb_ae=config.MUTPB_AE,
         pb_dt=config.MUTPB_DT,
         pb_en=config.MUTPB_EN,
-        pb_en_out_link=config.MUTPB_EN_OUT_LINK,
         pb_fv=config.MUTPB_FV,
         pb_id=config.MUTPB_ID,
         pb_iv=config.MUTPB_IV,
@@ -773,7 +786,7 @@ def mutate(
         child = mutate_del_triple(child)
 
     if random.random() < pb_en:
-        child = mutate_expand_node(child, pb_en_out_link)
+        child = mutate_expand_node(child)
     if random.random() < pb_ae:
         child = mutate_add_edge(child)
 
