@@ -32,6 +32,8 @@ from graph_pattern import SOURCE_VAR
 from graph_pattern import TARGET_VAR
 from graph_pattern import ASK_VAR
 from graph_pattern import COUNT_VAR
+from graph_pattern import NODE_VAR_SUM
+from graph_pattern import EDGE_VAR_COUNT
 from utils import exception_stack_catcher
 from utils import sparql_json_result_bindings_to_rdflib
 from utils import timer
@@ -279,7 +281,6 @@ def _combined_chunk_res(q_res, _vars, _ret_val_mapping):
     return chunk_res
 
 
-
 def count_query(sparql, timeout, graph_pattern, source=None,
                 **kwds):
     assert isinstance(graph_pattern, GraphPattern)
@@ -455,6 +456,68 @@ def _var_subst_chunk_result_ext(q_res, _sel_var_and_vars, _, **kwds):
 
 def _var_subst_res_update(res, update, **_):
     res += update
+
+
+def variable_substitution_deep_narrow_mut_query(
+        sparql, timeout, graph_pattern, edge_var, node_var,
+        source_target_pairs, limit_res, batch_size=config.BATCH_SIZE):
+    _vars, _values, _ret_val_mapping = _get_vars_values_mapping(
+        graph_pattern, source_target_pairs)
+    _edge_var_node_var_and_vars = (edge_var, node_var, _vars)
+    return _multi_query(
+        sparql, timeout, graph_pattern, source_target_pairs, batch_size,
+        _edge_var_node_var_and_vars, _values, _ret_val_mapping,
+        _var_subst_dnp_res_init, _var_subst_dnp_chunk_q,
+        _var_subst_dnp_chunk_result_ext,
+        _res_update=_var_subst_dnp_update,
+        limit=limit_res,
+        # non standard, passed via **kwds, see handling below
+    )
+
+
+# noinspection PyUnusedLocal
+def _var_subst_dnp_res_init(_, **kwds):
+    return Counter(), Counter()
+
+
+def _var_subst_dnp_chunk_q(gp, _edge_var_node_var_and_vars,
+                           values_chunk, limit):
+    edge_var, node_var, _vars = _edge_var_node_var_and_vars
+    return gp.to_find_edge_var_for_narrow_path_query(
+        edge_var=edge_var,
+        node_var=node_var,
+        vars_=_vars,
+        values={_vars: values_chunk},
+        limit_res=limit)
+
+
+# noinspection PyUnusedLocal
+def _var_subst_dnp_chunk_result_ext(
+        q_res, _edge_var_node_var_and_vars, _, **kwds):
+    edge_var, node_var, _vars = _edge_var_node_var_and_vars
+    chunk_edge_count, chunk_node_sum = Counter(), Counter()
+    res_rows_path = ['results', 'bindings']
+    bindings = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res, res_rows_path, default=[])
+    )
+
+    for row in bindings:
+        row_res = get_path(row, [edge_var])
+        edge_count = int(get_path(row, [EDGE_VAR_COUNT], '0'))
+        chunk_edge_count[row_res] += edge_count
+        node_sum_count = int(get_path(row, [NODE_VAR_SUM], '0'))
+        chunk_node_sum[row_res] += node_sum_count
+    return chunk_edge_count, chunk_node_sum,
+
+
+def _var_subst_dnp_update(res, up, **_):
+    edge_count, node_sum_count = res
+    try:
+        chunk_edge_count, chunk_node_sum = up
+        edge_count.update(chunk_edge_count)
+        node_sum_count.update(chunk_node_sum)
+    except ValueError:
+        pass
 
 
 def generate_stps_from_gp(sparql, gp):

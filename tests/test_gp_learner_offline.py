@@ -13,6 +13,7 @@ from scipy.stats import binom
 from gp_learner import mutate_increase_dist
 from gp_learner import mutate_merge_var
 from gp_learner import mutate_simplify_pattern
+from gp_learner import mutate_deep_narrow_path
 from graph_pattern import GraphPattern
 from graph_pattern import SOURCE_VAR
 from graph_pattern import TARGET_VAR
@@ -106,6 +107,35 @@ def test_mutate_merge_var():
             break
     else:
         assert False, "merge never reached one of the cases: %s" % cases
+
+
+def test_mutate_deep_narrow_path():
+    p = Variable('p')
+    gp = GraphPattern([
+        (SOURCE_VAR, p, TARGET_VAR)
+    ])
+    child = mutate_deep_narrow_path(gp)
+    assert gp == child or len(child) > len(gp)
+    print(gp)
+    print(child)
+
+
+def test_to_find_edge_var_for_narrow_path_query():
+    node_var = Variable('node_variable')
+    edge_var = Variable('edge_variable')
+    gp = GraphPattern([
+        (node_var, edge_var, SOURCE_VAR),
+        (SOURCE_VAR, wikilink, TARGET_VAR)
+    ])
+    filter_node_count = 10
+    filter_edge_count = 1
+    limit_res = 32
+    vars_ = {SOURCE_VAR,TARGET_VAR}
+    res = GraphPattern.to_find_edge_var_for_narrow_path_query(gp, edge_var, node_var,
+                                           vars_, filter_node_count,
+                                           filter_edge_count, limit_res)
+    print(gp)
+    print(res)
 
 
 def test_simplify_pattern():
@@ -270,3 +300,8 @@ def test_remaining_gain_sample_gtps():
 
 def test_gtp_scores():
     assert gtp_scores - gtp_scores == 0
+
+
+if __name__ == '__main__':
+    # test_mutate_deep_narrow_path()
+    test_to_find_edge_var_for_narrow_path_query()
