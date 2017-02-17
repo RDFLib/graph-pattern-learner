@@ -4,6 +4,7 @@ from __future__ import division
 from collections import Counter
 import logging
 import random
+import textwrap
 
 import rdflib
 from rdflib import URIRef
@@ -13,7 +14,6 @@ from scipy.stats import binom
 from gp_learner import mutate_increase_dist
 from gp_learner import mutate_merge_var
 from gp_learner import mutate_simplify_pattern
-from gp_learner import mutate_deep_narrow_path
 from graph_pattern import GraphPattern
 from graph_pattern import SOURCE_VAR
 from graph_pattern import TARGET_VAR
@@ -109,33 +109,36 @@ def test_mutate_merge_var():
         assert False, "merge never reached one of the cases: %s" % cases
 
 
-def test_mutate_deep_narrow_path():
-    p = Variable('p')
-    gp = GraphPattern([
-        (SOURCE_VAR, p, TARGET_VAR)
-    ])
-    child = mutate_deep_narrow_path(gp)
-    assert gp == child or len(child) > len(gp)
-    print(gp)
-    print(child)
+def test_deep_narrow_path_query():
+    node_var = Variable('node_var')
+    edge_var = Variable('edge_var')
+    gtps = [
+        (dbp['Barrel'], dbp['Wine']),
+        (dbp['Barrister'], dbp['Law']),
+        (dbp['Beak'], dbp['Bird']),
+        (dbp['Blanket'], dbp['Bed']),
+    ]
 
-
-def test_to_find_edge_var_for_narrow_path_query():
-    node_var = Variable('node_variable')
-    edge_var = Variable('edge_variable')
     gp = GraphPattern([
         (node_var, edge_var, SOURCE_VAR),
         (SOURCE_VAR, wikilink, TARGET_VAR)
     ])
-    filter_node_count = 10
-    filter_edge_count = 1
-    limit_res = 32
-    vars_ = {SOURCE_VAR,TARGET_VAR}
-    res = GraphPattern.to_find_edge_var_for_narrow_path_query(gp, edge_var, node_var,
-                                           vars_, filter_node_count,
-                                           filter_edge_count, limit_res)
-    print(gp)
-    print(res)
+
+    vars_ = (SOURCE_VAR, TARGET_VAR)
+    res = gp.to_deep_narrow_path_query(
+        edge_var, node_var, vars_, {vars_: gtps},
+        limit=32,
+        max_node_count=10,
+        min_edge_count=2,
+    ).strip()
+    doc = gp.to_deep_narrow_path_query.__doc__
+    doc_str_example_query = "\n".join([
+        l for l in doc.splitlines()
+        if l.startswith('         ')
+    ])
+    doc_str_example_query = textwrap.dedent(doc_str_example_query)
+    assert res == doc_str_example_query, \
+        "res:\n%s\n\ndoes not look like:\n\n%s" % (res, doc_str_example_query)
 
 
 def test_simplify_pattern():
@@ -303,5 +306,4 @@ def test_gtp_scores():
 
 
 if __name__ == '__main__':
-    # test_mutate_deep_narrow_path()
-    test_to_find_edge_var_for_narrow_path_query()
+    test_deep_narrow_path_query()
