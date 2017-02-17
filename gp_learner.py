@@ -48,7 +48,7 @@ from gp_query import combined_ask_count_multi_query
 from gp_query import predict_query
 from gp_query import query_time_hard_exceeded
 from gp_query import query_time_soft_exceeded
-from gp_query import variable_substitution_deep_narrow_mut_query
+from gp_query import dnp_query
 from gp_query import variable_substitution_query
 from graph_pattern import canonicalize
 from graph_pattern import gen_random_var
@@ -655,15 +655,12 @@ def mutate_fix_var(
 
 
 def _mutate_deep_narrow_path_helper(
-            sparql,
-            timeout,
-            gtp_scores,
-            child,
-            edge_var,
-            node_var,
-            gtp_sample_n=config.MUTPB_FV_RGTP_SAMPLE_N,
-            limit_res=config.MUTPB_DN_QUERY_LIMIT,
-            sample_n=config.MUTPB_FV_SAMPLE_MAXN,
+        sparql, timeout, gtp_scores, child, edge_var, node_var,
+        gtp_sample_n=config.MUTPB_FV_RGTP_SAMPLE_N,
+        max_node_count=config.MUTPB_DN_MAX_NODE_COUNT,
+        min_edge_count=config.MUTPB_DN_MIN_EDGE_COUNT,
+        limit=config.MUTPB_DN_QUERY_LIMIT,
+        sample_n=config.MUTPB_FV_SAMPLE_MAXN,
 ):
     assert isinstance(child, GraphPattern)
     assert isinstance(gtp_scores, GTPScores)
@@ -675,10 +672,15 @@ def _mutate_deep_narrow_path_helper(
     gtp_sample_n = random.randint(1, gtp_sample_n)
 
     ground_truth_pairs = gtp_scores.remaining_gain_sample_gtps(
-     n=gtp_sample_n)
-    t, substitution_counts = variable_substitution_deep_narrow_mut_query(
-     sparql, timeout, child, edge_var, node_var, ground_truth_pairs,
-     limit_res)
+        max_n=gtp_sample_n)
+    t, substitution_counts = dnp_query(
+        sparql, timeout, child, ground_truth_pairs,
+        edge_var=edge_var,
+        node_var=node_var,
+        max_node_count=max_node_count,
+        min_edge_count=min_edge_count,
+        limit=limit,
+    )
     edge_count, node_sum_count = substitution_counts
     if not node_sum_count:
         # the current pattern is unfit, as we can't find anything fulfilling it
@@ -698,7 +700,7 @@ def _mutate_deep_narrow_path_helper(
     for edge, node_sum in node_sum_count.items():
         ec = edge_count[edge]
         prio[edge] = ec / (node_sum / ec)  # ec / AVG degree
-    # randomly pick n of the substitutions with a prob ~ to their counts
+    # randomly pick n of the substitutions with a prob ~ to their prios
     edges, prios = zip(*prio.most_common())
 
     substs = sample_from_list(edges, prios, sample_n)
@@ -715,9 +717,9 @@ def _mutate_deep_narrow_path_helper(
     fixed = True
     orig_child = child
     children = [
-     GraphPattern(child, mapping={edge_var: subst})
-     for subst in substs
-     ]
+        GraphPattern(child, mapping={edge_var: subst})
+        for subst in substs
+    ]
     children = [
         c if fit_to_live(c) else orig_child
         for c in children

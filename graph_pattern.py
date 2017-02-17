@@ -16,6 +16,7 @@ from itertools import chain
 import logging
 import random
 import string
+import textwrap
 
 import deap
 import deap.base
@@ -31,7 +32,6 @@ from rdflib import Variable
 import six
 
 from utils import URIShortener
-import config
 
 logger = logging.getLogger(__name__)
 
@@ -717,84 +717,101 @@ class GraphPattern(tuple):
         res += 'LIMIT %d\n' % limit
         return self._sparql_prefix(res)
 
-    def to_find_edge_var_for_narrow_path_query(
-            self, edge_var, node_var, vars_, values, limit_res,
-            filter_node_count=config.MUTPB_DN_FILTER_NODE_COUNT,
-            filter_edge_count=config.MUTPB_DN_FILTER_EDGE_COUNT,
+    def to_deep_narrow_path_query(
+            self, edge_var, node_var, vars_, values,
+            limit, max_node_count, min_edge_count,
     ):
-        """Counts possible substitutions for edge_var to get a narrow path
+        """Counts possible substitutions for edge_var to get a narrow path.
 
         Meant to perform a query like this:
-        SELECT *
-        {
+         PREFIX dbr: <http://dbpedia.org/resource/>
+         SELECT * WHERE {
           {
-            SELECT
-              ?edge_var
-              (COUNT(*) AS ?edge_var_count)
-              (MAX(?node_var_count) AS ?max_node_count)
-              (COUNT(*)/AVG(?node_var_count) as ?prio_var)
-            {
-              SELECT DISTINCT
-                ?source ?target ?edge_var (COUNT(?node_var) AS ?node_var_count)
-              {
-                VALUES (?source ?target) {
-                  (dbr:Adolescence dbr:Youth)
-                  (dbr:Adult dbr:Child)
-                  (dbr:Angel dbr:Heaven)
-                  (dbr:Arithmetic dbr:Mathematics)
-                }
-                ?node_var ?edge_var ?source .
-                ?source dbo:wikiPageWikiLink ?target .
-              }
+           SELECT ?edge_var
+                  (SUM(?node_var_count) AS ?node_var_sum)
+                  (COUNT(?source && ?target) AS ?edge_var_count)
+                  (MAX(?node_var_count) AS ?max_node_count)
+           WHERE {
+            SELECT DISTINCT ?source ?target ?edge_var
+                            (COUNT(?node_var) AS ?node_var_count)
+            WHERE {
+             VALUES (?source ?target) {
+              (dbr:Barrel dbr:Wine)
+              (dbr:Barrister dbr:Law)
+              (dbr:Beak dbr:Bird)
+              (dbr:Blanket dbr:Bed)
+             }
+             ?node_var ?edge_var ?source .
+             ?source <http://dbpedia.org/ontology/wikiPageWikiLink> ?target .
             }
-            GROUP BY ?edge_var
-            ORDER BY DESC(?edge_var_count)
+           }
+           GROUP BY ?edge_var
           }
-          FILTER(?max_node_count < 10 && ?edge_var_count > 1)
-        }
-        ORDER BY DESC(?prio_var)
-        LIMIT 32
+          FILTER(?max_node_count <= 10
+                 && ?edge_var_count >= 2)
+         }
+         ORDER BY DESC(?edge_var_count) ASC(?node_var_sum)
+         LIMIT 32
+
+        The idea here is to expand a random node (?source in the example above)
+        with new variable triple and then try to fix its edge in a way that the
+        degree (?node_var_count) isn't too high (<= max_node_count). We're also
+        interested in the avg degree being low. In light of query chunking the
+        sum is returned here (instead of AVG).
+
+        Apart from minimizing the degrees, we would also like to maximize the
+        number of stps an ?edge_var fixation is valid for (?edge_var_count).
+
+        See gp_learner.mutate_deep_narrow_path() for more.
 
         :param edge_var: Edge variable to find substitution for.
         :param node_var: Node variable to count.
         :param vars_: List of vars to fix values for (e.g. ?source, ?target).
         :param values: List of value lists for vars_.
-        :param filter_node_count: Filter on node count of edge variable.
-        :param filter_edge_count: Filter for edge count of triples.
-        :param limit_res : limit result size
+        :param max_node_count: Filter on node count of edge variable.
+        :param min_edge_count: Filter for edge count of triples.
+        :param limit : limit result size.
         :return: Query String.
         """
 
-        res = 'SELECT * WHERE {\n'
-        res += ' {\n'\
-               '  SELECT %s (SUM (?node_var_count) AS %s) (COUNT(%s) AS %s) ' \
-               '(MAX(?node_var_count) AS ?max_node_count) WHERE {\n' % (
-                     edge_var.n3(),
-                     NODE_VAR_SUM.n3(),
-                     ' && '.join([v.n3() for v in vars_]),
-                     EDGE_VAR_COUNT.n3(), )
-        res += '    SELECT DISTINCT %s %s (COUNT(%s) AS ?node_var_count) ' \
-               'WHERE {\n   ' % (' '.join([v.n3() for v in vars_]),
-                                 edge_var.n3(), node_var.n3(), )
-        res += self._sparql_values_part(values)
-
-        # triples part
-        tres = []
-        for s, p, o in self:
-            tres.append('%s %s %s .' % (s.n3(), p.n3(), o.n3()))
-        indent = ' ' * 3
-        triples = indent + ('\n' + indent).join(tres) + '\n'
-        res += triples
-        res += '    }\n'\
-               '   }\n'
-        res += '   GROUP BY %s\n' % edge_var.n3()
-        res += '  }\n'
-        res += '  FILTER(?max_node_count < %d && %s > %d)\n' \
-               % (filter_node_count, EDGE_VAR_COUNT.n3(),
-                  filter_edge_count)
-        res += '}\n'
-        res += 'ORDER BY ASC(%s)\n' % NODE_VAR_SUM.n3()
-        res += 'LIMIT %d' % limit_res
+        res = '''\
+            SELECT * WHERE {
+             {
+              SELECT %(edge_var)s
+                     (SUM(?node_var_count) AS %(node_var_sum)s)
+                     (COUNT(%(vars_and)s) AS %(edge_var_count)s)
+                     (MAX(?node_var_count) AS ?max_node_count)
+              WHERE {
+               SELECT DISTINCT %(vars)s %(edge_var)s
+                               (COUNT(%(node_var)s) AS ?node_var_count)
+               WHERE {\n%(values_part)s                %(triples)s
+               }
+              }
+              GROUP BY %(edge_var)s
+             }
+             FILTER(?max_node_count <= %(max_node_count)d
+                    && %(edge_var_count)s >= %(min_edge_count)d)
+            }
+            ORDER BY DESC(%(edge_var_count)s) ASC(%(node_var_sum)s)
+            LIMIT %(limit)d
+        ''' % {
+            # TODO: adapt self._sparql_values_part for template use (indent)
+            'edge_var': edge_var.n3(),
+            'node_var_sum': NODE_VAR_SUM.n3(),
+            'vars_and': ' && '.join([v.n3() for v in vars_]),
+            'edge_var_count': EDGE_VAR_COUNT.n3(),
+            'vars': ' '.join([v.n3() for v in vars_]),
+            'node_var': node_var.n3(),
+            'values_part': self._sparql_values_part(
+                values, indent='                '),
+            'triples': '\n                '.join(
+                '%s %s %s .' % (s.n3(), p.n3(), o.n3()) for s, p, o in self
+            ),
+            'limit': limit,
+            'max_node_count': max_node_count,
+            'min_edge_count': min_edge_count,
+        }
+        res = textwrap.dedent(res)
         return self._sparql_prefix(res)
 
     def to_dict(self):
