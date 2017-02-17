@@ -92,7 +92,7 @@ def to_nx_graph_as_bipartite_hypergraph_equivalent(gp):
 
 
 def canonicalize_gp_to_rdf_graph(gp, fixed_vars=None):
-    assert isinstance(gp, Iterable)
+    assert isinstance(gp, Iterable), "gp not iterable: %r" % gp
     if fixed_vars is None:
         fixed_vars = set()
 
@@ -100,7 +100,9 @@ def canonicalize_gp_to_rdf_graph(gp, fixed_vars=None):
     g = Graph()
     for t in gp:
         triple_bnode = BNode()
-        assert triple_bnode not in triple_bnodes
+        assert triple_bnode not in triple_bnodes, \
+            "%r triple_bnode %r not meant to be in triple_bnodes %r" % (
+                gp, triple_bnode, triple_bnodes)
         s, p, o = [
             BNode(i) if isinstance(i, Variable) and i not in fixed_vars else i
             for i in t
@@ -116,7 +118,8 @@ def canonicalize_gp_to_rdf_graph(gp, fixed_vars=None):
 def canonicalize_rdf_cg_to_gp(cg):
     cgp = []
     for triple_bnode in cg.subjects(RDF['type'], RDF['Statement']):
-        assert isinstance(triple_bnode, BNode)
+        assert isinstance(triple_bnode, BNode), \
+            "expected BNode, got %r in %r" % (triple_bnode, list(cg))
         t = [
             cg.value(triple_bnode, p)
             for p in [RDF['subject'], RDF['predicate'], RDF['object']]
@@ -335,8 +338,10 @@ class GraphPattern(tuple):
                 notably rdflib.Variables) or None. The given mappings are
                 applied during creation for the new GraphPattern.
         """
-        assert mapping is None or isinstance(mapping, dict)
-        assert isinstance(triples, Iterable)
+        assert mapping is None or isinstance(mapping, dict), \
+            'mapping should be a dict: %r' % mapping
+        assert isinstance(triples, Iterable), \
+            "triples not iterable: %r" % triples
         triples = set(triples)
         assert not triples or isinstance(next(iter(triples)), tuple)
         mapping = mapping.copy() if mapping else {}
@@ -782,12 +787,16 @@ class GraphPattern(tuple):
         return nx.diameter(g)
 
     def __add__(self, other):
-        assert isinstance(other, Iterable)
+        assert isinstance(other, Iterable), \
+            "self: %s, other not iterable: %r" % (self, other)
         if __debug__ and not isinstance(other, GraphPattern):
             try:
                 it = iter(other)
                 peek = next(it)
-                assert isinstance(peek, tuple)
+                assert isinstance(peek, tuple), \
+                    "self: %sother first element not a tuple %r, other: %r" % (
+                        self, peek, other
+                    )
                 other = chain((peek,), it)
             except StopIteration:
                 pass
@@ -797,7 +806,8 @@ class GraphPattern(tuple):
         return GraphPattern(set(self) - set(other))
 
     def flip_edge(self, edge_idx):
-        assert edge_idx < len(self)
+        assert edge_idx < len(self), \
+            "edge_idx %d out of bounds: %s" % (edge_idx, self)
         e = self[edge_idx]
         return GraphPattern(self[:edge_idx] + (e[::-1],) + self[edge_idx + 1:])
 
@@ -856,9 +866,10 @@ class GraphPatternStats(object):
         self.gt_pairs = set()
 
     def add_graph_pattern(self, gp, stimulus, response):
-        assert isinstance(gp, GraphPattern)
+        assert isinstance(gp, GraphPattern), "%r not a GraphPattern" % gp
         gtp = (stimulus, response)
-        assert gtp not in self.gt_pairs
+        assert gtp not in self.gt_pairs, \
+            "gtp %r not in gt_pairs: %r" % (gtp, self.gt_pairs)
         self.gt_pairs.add(gtp)
         identifiers = gp.identifier_counts(exclude_vars=True)
         self.identifier_gt_pair_count.update(identifiers.keys())

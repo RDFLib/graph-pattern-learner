@@ -67,7 +67,7 @@ def test_variable_substitution_query():
     t, res = variable_substitution_query(
         sparql, timeout, gp, Variable('edge'), source_target_pairs, limit)
     logger.debug(res.most_common())
-    assert res.most_common()[0][0] == wpl, 2
+    assert res and res.most_common()[0][0] == wpl
 
     gp = GraphPattern([
         (Variable('var'), wpl, SOURCE_VAR),
