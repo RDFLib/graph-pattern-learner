@@ -15,6 +15,7 @@ from rdflib import Variable
 
 from config import SPARQL_ENDPOINT
 from gp_learner import evaluate
+from gp_learner import mutate_deep_narrow_path
 from gp_learner import mutate_fix_var
 from gp_learner import update_individuals
 from gp_query import calibrate_query_timeout
@@ -134,6 +135,17 @@ def test_mutate_fix_var():
         assert gp.vars_in_graph - tgp.vars_in_graph
 
 
+def test_mutate_deep_narrow_path():
+    p = Variable('p')
+    gp = GraphPattern([
+        (SOURCE_VAR, p, TARGET_VAR)
+    ])
+    child = mutate_deep_narrow_path(gp, sparql, timeout, gtp_scores)
+    assert gp == child or len(child) > len(gp)
+    print(gp)
+    print(child)
+
+
 def test_timeout_pattern():
     u = URIRef('http://dbpedia.org/resource/Template:Reflist')
     wpdisambig = URIRef('http://dbpedia.org/ontology/wikiPageDisambiguates')
@@ -158,3 +170,7 @@ def test_timeout_pattern():
         assert fitness.f_measure == 0
     else:
         assert fitness.f_measure > 0
+
+
+if __name__ == '__main__':
+    test_mutate_deep_narrow_path()
