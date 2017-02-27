@@ -85,6 +85,8 @@ MUTPB_DN_TERM_PB = 0.3  # prob to terminate expansion each step > min_len
 MUTPB_DN_MAX_NODE_COUNT = 10  # edge fixations may have <= nodes
 MUTPB_DN_MIN_EDGE_COUNT = 2  # edges need to be valid for >= GTPs
 MUTPB_DN_QUERY_LIMIT = 32  # SPARQL query limit for top edge fixations
+MUTPB_DN_LOOK_AHEAD_LIMIT = 2
+MUTPB_DN_RECURSION_LIMIT = 4
 
 # for import in helpers and __init__
 __all__ = [_v for _v in globals().keys() if _v.isupper()]

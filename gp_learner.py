@@ -723,7 +723,7 @@ def _mutate_deep_narrow_path_helper(
     children = [
         c if fit_to_live(c) else orig_child
         for c in children
-        ]
+    ]
     if children:
         child = random.choice(list(children))
     return child, fixed
@@ -731,16 +731,23 @@ def _mutate_deep_narrow_path_helper(
 
 def mutate_deep_narrow_path(
         child, sparql, timeout, gtp_scores,
+        _rec_depth=0,
+        start_node=None,
         min_len=config.MUTPB_DN_MIN_LEN,
         max_len=config.MUTPB_DN_MAX_LEN,
         term_pb=config.MUTPB_DN_TERM_PB,
+        recursion_look_ahead=config.MUTPB_DN_LOOK_AHEAD_LIMIT,
+        rec_limit=config.MUTPB_DN_RECURSION_LIMIT,
 ):
     assert isinstance(child, GraphPattern)
     nodes = list(child.nodes)
-    start_node = random.choice(nodes)
-    # target_nodes = set(nodes) - {start_node}
+    if start_node is None:
+        start_node = random.choice(nodes)
+    fixed_for_start_node = start_node
+    fixed_gp = child
     gp = child
     hop = 0
+    false_fixed_count = 0
     while True:
         if hop >= min_len and random.random() < term_pb:
             break
@@ -748,10 +755,29 @@ def mutate_deep_narrow_path(
             break
         hop += 1
         new_triple, var_node, var_edge = _mutate_expand_node_helper(start_node)
+        orig_gp = gp
         gp += [new_triple]
         gp, fixed = _mutate_deep_narrow_path_helper(
             sparql, timeout, gtp_scores, gp, var_edge, var_node)
-        start_node = var_node
+        if fixed:
+            fixed_for_start_node = start_node
+            fixed_gp = orig_gp
+            false_fixed_count = 0
+            start_node = var_node
+        if not fixed:
+            false_fixed_count += 1
+            if false_fixed_count > recursion_look_ahead:
+                _rec_depth += 1
+                if _rec_depth > rec_limit:
+                    return gp
+                start_node = fixed_for_start_node
+                gp = mutate_deep_narrow_path(
+                    fixed_gp, sparql, timeout, gtp_scores,
+                    _rec_depth,
+                    start_node=start_node
+                )
+                return gp
+            start_node = var_node
     return gp
 
 
