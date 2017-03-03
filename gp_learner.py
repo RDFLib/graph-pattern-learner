@@ -704,10 +704,10 @@ def _mutate_deep_narrow_path_helper(
     edges, prios = zip(*prio.most_common())
 
     substs = sample_from_list(edges, prios, sample_n)
-
     logger.info(
-        'fixed variable %s in %sto:\n %s\n<%d out of:\n%s\n',
+        'fixed variable %s to %s in %s\n %s\n<%d out of:\n%s\n',
         edge_var.n3(),
+        substs[0] if substs else '',
         child,
         '\n '.join([subst.n3() for subst in substs]),
         sample_n,
@@ -715,17 +715,15 @@ def _mutate_deep_narrow_path_helper(
             ' %.3f: %s' % (c, v.n3()) for v, c in prio.most_common()]),
     )
     fixed = True
-    orig_child = child
     children = [
         GraphPattern(child, mapping={edge_var: subst})
         for subst in substs
     ]
     children = [
-        c if fit_to_live(c) else orig_child
-        for c in children
+        c for c in children if fit_to_live(c)
     ]
     if children:
-        child = random.choice(list(children))
+        child = children[0]
     return child, fixed
 
 
