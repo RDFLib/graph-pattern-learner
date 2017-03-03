@@ -734,49 +734,37 @@ def mutate_deep_narrow_path(
         min_len=config.MUTPB_DN_MIN_LEN,
         max_len=config.MUTPB_DN_MAX_LEN,
         term_pb=config.MUTPB_DN_TERM_PB,
-        recursion_look_ahead=config.MUTPB_DN_LOOK_AHEAD_LIMIT,
-        rec_limit=config.MUTPB_DN_RECURSION_LIMIT,
+        retries=config.MUTPB_DN_REC_RETRIES,
 ):
     assert isinstance(child, GraphPattern)
-    nodes = list(child.nodes)
-    if start_node is None:
+    assert min_len > 0
+    if _rec_depth > max_len:
+        return None
+    if _rec_depth >= min_len and random.random() < term_pb:
+        return None
+    if not start_node:
+        nodes = list(child.nodes)
         start_node = random.choice(nodes)
-    fixed_for_start_node = start_node
-    fixed_gp = child
+
     gp = child
-    hop = 0
-    false_fixed_count = 0
-    while True:
-        if hop >= min_len and random.random() < term_pb:
-            break
-        if hop >= max_len:
-            break
-        hop += 1
-        new_triple, var_node, var_edge = _mutate_expand_node_helper(start_node)
-        orig_gp = gp
-        gp += [new_triple]
-        gp, fixed = _mutate_deep_narrow_path_helper(
+    new_triple, var_node, var_edge = _mutate_expand_node_helper(start_node)
+    gp += [new_triple]
+    for r in range(retries):
+        fixed_gp, fixed = _mutate_deep_narrow_path_helper(
             sparql, timeout, gtp_scores, gp, var_edge, var_node)
+        rec_gp = mutate_deep_narrow_path(
+            fixed_gp, sparql, timeout, gtp_scores,
+            _rec_depth+1,
+            start_node=var_node
+        )
+        if rec_gp:
+            return rec_gp
         if fixed:
-            fixed_for_start_node = start_node
-            fixed_gp = orig_gp
-            false_fixed_count = 0
-            start_node = var_node
-        if not fixed:
-            false_fixed_count += 1
-            if false_fixed_count > recursion_look_ahead:
-                _rec_depth += 1
-                if _rec_depth > rec_limit:
-                    return gp
-                start_node = fixed_for_start_node
-                gp = mutate_deep_narrow_path(
-                    fixed_gp, sparql, timeout, gtp_scores,
-                    _rec_depth,
-                    start_node=start_node
-                )
-                return gp
-            start_node = var_node
-    return gp
+            if _rec_depth > min_len:
+                return fixed_gp
+    if _rec_depth == 0:
+        return child
+    return None
 
 
 def mutate_simplify_pattern(gp):
