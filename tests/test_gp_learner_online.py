@@ -124,7 +124,7 @@ def test_mutate_fix_var():
     for tgp in tgps:
         logger.info(tgp.to_sparql_select_query())
         assert gp == tgp, 'should not have found any substitution'
-    ground_truth_pairs_.append((dbp['Berlin'], dbp['Germany']))
+    ground_truth_pairs_ = ((dbp['Berlin'], dbp['Germany']),)
     gtp_scores_ = GTPScores(ground_truth_pairs_)
     tgps = mutate_fix_var(sparql, timeout, gtp_scores_, gp)
     assert tgps
