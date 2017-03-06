@@ -731,9 +731,11 @@ def mutate_deep_narrow_path(
         child, sparql, timeout, gtp_scores,
         _rec_depth=0,
         start_node=None,
+        target_nodes = None,
         min_len=config.MUTPB_DN_MIN_LEN,
         max_len=config.MUTPB_DN_MAX_LEN,
         term_pb=config.MUTPB_DN_TERM_PB,
+        pb_en_out_link=config.MUTPB_EN_OUT_LINK,
         retries=config.MUTPB_DN_REC_RETRIES,
 ):
     assert isinstance(child, GraphPattern)
@@ -742,9 +744,24 @@ def mutate_deep_narrow_path(
         return None
     if _rec_depth >= min_len and random.random() < term_pb:
         return None
-    if not start_node:
-        nodes = list(child.nodes)
-        start_node = random.choice(nodes)
+    if _rec_depth == 0:
+        nodes = child.nodes
+        if not start_node:
+            start_node = random.choice(list(nodes))
+        target_nodes = list(nodes - {start_node})
+    if _rec_depth >=min_len:
+        closed_gp = child
+        for node in target_nodes:
+            var_edge_to_target = gen_random_var()
+            if random.random() < pb_en_out_link:
+                new_triple = (start_node, var_edge_to_target, node)
+            else:
+                new_triple = (node, var_edge_to_target, start_node)
+            closed_gp += [new_triple]
+            closed_gp, fixed_edge_to_target = _mutate_deep_narrow_path_helper(
+                sparql, timeout, gtp_scores, closed_gp,var_edge_to_target, node)
+            if fixed_edge_to_target:
+                return closed_gp
 
     gp = child
     new_triple, var_node, var_edge = _mutate_expand_node_helper(start_node)
@@ -755,7 +772,8 @@ def mutate_deep_narrow_path(
         rec_gp = mutate_deep_narrow_path(
             fixed_gp, sparql, timeout, gtp_scores,
             _rec_depth+1,
-            start_node=var_node
+            start_node=var_node,
+            target_nodes = target_nodes,
         )
         if rec_gp:
             return rec_gp
