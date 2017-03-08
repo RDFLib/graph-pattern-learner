@@ -989,7 +989,7 @@ def generate_init_population(
             to_fix.append(vp)
         else:
             population.append(vp)
-    p_mfv = partial(mutate_fix_var, sparql, timeout, gtp_scores, sample_n=n)
+    p_mfv = partial(mutate_fix_var, sparql, timeout, gtp_scores, sample_max_n=n)
     fixed_result_patterns_per_vp = list(parallel_map(p_mfv, to_fix))
     for fixed_result_patterns in fixed_result_patterns_per_vp:
         population.extend(fixed_result_patterns)
