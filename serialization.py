@@ -80,7 +80,7 @@ def set_symlink(file_path, symlink_name):
     symlink_path = path.join(config.RESDIR, symlink_name)
     if path.islink(symlink_path):
         os.remove(symlink_path)
-    if getattr(os, 'symlink'):
+    if hasattr(os, 'symlink'):
         os.symlink(path.basename(file_path), symlink_path)
 
 
