@@ -10,10 +10,10 @@ from os import path
 # All uppercase variable assignments are config options that become configurable
 # from commandline. Comments (in same line) will become docs.
 
-DATADIR = './data'  # dir with default input files
+DATADIR = 'data'  # dir with default input files
 GT_ASSOCIATIONS_FILENAME = path.join(DATADIR, 'gt_associations.csv')
 SPLITTING_VARIANTS = ['random', 'target_node_disjoint', 'node_disjoint']
-RESDIR = './results'  # dir to put learner results
+RESDIR = 'results'  # dir to put learner results
 SYMLINK_CURRENT_RES_RUN_GEN = 'top_graph_patterns_current.json.gz'  # link name
 RES_RUN_PREFIX = 'results_run'
 SYMLINK_CURRENT_RES_RUN = 'results_current.json.gz'  # link name
