@@ -639,7 +639,7 @@ def mutate_fix_var(
         # the current pattern is unfit, as we can't find anything fulfilling it
         logger.debug("tried to fix a var %s without result:\n%s"
                      "seems as if the pattern can't be fulfilled!",
-                     rand_var, child.to_sparql_select_query())
+                     rand_var, child)
         return [child]
 
     mutate_fix_var_filter(substitution_counts)
@@ -669,7 +669,7 @@ def mutate_simplify_pattern(gp):
     if len(gp) < 2:
         return gp
     orig_gp = gp
-    logger.debug('simplifying pattern\n%s', gp.to_sparql_select_query())
+    logger.debug('simplifying pattern\n%s', gp)
 
     # remove parallel variable edges (single variables only)
     # e.g., [ :x ?v1 ?y . :x ?v2 ?y. ]
@@ -741,20 +741,20 @@ def mutate_simplify_pattern(gp):
         logger.info(
             'simplification of the following pattern resulted in empty pattern,'
             ' returning original pattern:\n%s',
-            orig_gp.to_sparql_select_query(),
+            orig_gp,
         )
         return orig_gp
 
     if orig_gp == gp:
         logger.info(
             'simplification had no effect on pattern:\n%s',
-            gp.to_sparql_select_query(),
+            gp,
         )
     else:
         logger.info(
             'successfully simplified pattern:\n%swas simplified to:\n%s',
-            orig_gp.to_sparql_select_query(),
-            gp.to_sparql_select_query(),
+            orig_gp,
+            gp,
         )
     return gp
 

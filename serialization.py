@@ -36,7 +36,8 @@ def format_graph_pattern(gp, matching_node_pairs=10):
     assert isinstance(gp, GraphPattern)
     res = ['Fitness: %s\n%s\n%s' % (
         gp.fitness.format_fitness(),
-        gp.fitness.description, gp.to_sparql_select_query()
+        gp.fitness.description,
+        gp
     )]
     if matching_node_pairs > 0 and gp.matching_node_pairs:
         res.append("matching node pairs:")

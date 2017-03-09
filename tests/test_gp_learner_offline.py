@@ -120,12 +120,12 @@ def test_simplify_pattern():
         (SOURCE_VAR, Variable('v1'), TARGET_VAR),
     ]
     res = mutate_simplify_pattern(gp_bloated)
-    assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'not simplified:\n%s' % (res,)
     gp_bloated += [
         (SOURCE_VAR, Variable('v2'), TARGET_VAR),
     ]
     res = mutate_simplify_pattern(gp_bloated)
-    assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'not simplified:\n%s' % (res,)
 
     # test edges between fixed nodes
     gp += [
@@ -137,27 +137,27 @@ def test_simplify_pattern():
         (dbp['Country'], Variable('v2'), dbp['City']),
     ]
     res = mutate_simplify_pattern(gp_bloated)
-    assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'not simplified:\n%s' % (res,)
 
     # test unrestricting leaves:
     gp_bloated = gp + [
         (SOURCE_VAR, Variable('v3'), Variable('v4')),
     ]
     res = mutate_simplify_pattern(gp_bloated)
-    assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'not simplified:\n%s' % (res,)
     gp_bloated = gp + [
         (SOURCE_VAR, Variable('v3'), Variable('v4')),
         (Variable('v5'), Variable('v6'), Variable('v4')),
     ]
     res = mutate_simplify_pattern(gp_bloated)
-    assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'not simplified:\n%s' % (res,)
     gp_bloated = gp + [
         (SOURCE_VAR, Variable('v3'), Variable('v4')),
         (Variable('v5'), Variable('v6'), Variable('v4')),
         (Variable('v4'), Variable('v7'), Variable('v8')),
     ]
     res = mutate_simplify_pattern(gp_bloated)
-    assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'not simplified:\n%s' % (res,)
 
     # test leaves behind fixed nodes
     gp += [
@@ -168,7 +168,7 @@ def test_simplify_pattern():
         (Variable('v5'), Variable('v6'), Variable('v7')),
     ]
     res = mutate_simplify_pattern(gp_bloated)
-    assert res == gp, 'not simplified:\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'not simplified:\n%s' % (res,)
 
     # counter example of an advanced but restricting pattern:
     gp += [
@@ -180,20 +180,20 @@ def test_simplify_pattern():
         (dbp['Country'], Variable('v8'), dbp['City']),
     ]
     res = mutate_simplify_pattern(gp)
-    assert res == gp, 'was simplified (bad):\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'was simplified (bad):\n%s' % (res,)
 
     # test atomic patterns:
     gp = GraphPattern([
         (SOURCE_VAR, Variable('v1'), Variable('v2'))
     ])
     res = mutate_simplify_pattern(gp)
-    assert res == gp, 'was simplified (bad):\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'was simplified (bad):\n%s' % (res,)
     gp = GraphPattern([
         (SOURCE_VAR, Variable('v1'), Variable('v2')),
         (SOURCE_VAR, Variable('v3'), Variable('v4')),
     ])
     res = mutate_simplify_pattern(gp)
-    assert res == gp, 'was simplified (bad):\n%s' % res.to_sparql_select_query()
+    assert res == gp, 'was simplified (bad):\n%s' % (res,)
 
     # test edge var connections
     gp = GraphPattern([

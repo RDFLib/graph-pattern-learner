@@ -115,7 +115,7 @@ def test_mutate_fix_var():
     tgps = mutate_fix_var(sparql, timeout, gtp_scores_, gp)
     assert tgps
     for tgp in tgps:
-        logger.info(tgp.to_sparql_select_query())
+        logger.info(tgp)
         assert gp != tgp
         assert v not in tgp.vars_in_graph
     gp = GraphPattern([
@@ -126,14 +126,14 @@ def test_mutate_fix_var():
     tgps = mutate_fix_var(sparql, timeout, gtp_scores_, gp, rand_var=v)
     assert tgps
     for tgp in tgps:
-        logger.info(tgp.to_sparql_select_query())
+        logger.info(tgp)
         assert gp == tgp, 'should not have found any substitution'
     ground_truth_pairs_ = ((dbp['Berlin'], dbp['Germany']),)
     gtp_scores_ = GTPScores(ground_truth_pairs_)
     tgps = mutate_fix_var(sparql, timeout, gtp_scores_, gp)
     assert tgps
     for tgp in tgps:
-        logger.info(tgp.to_sparql_select_query())
+        logger.info(tgp)
         assert gp != tgp, 'should have found a substitution'
         assert gp.vars_in_graph - tgp.vars_in_graph
 
