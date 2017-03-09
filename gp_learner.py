@@ -365,7 +365,19 @@ def mutate_split_var(child):
         tuple([rand_var if ti == var_to_split else ti for ti in t])
         for t in triples_with_var[:split_idx]
     ]
-    return GraphPattern(triples)
+    gp = GraphPattern(triples)
+    if not fit_to_live(gp):
+        # can happen that we created a disconnected pattern:
+        # orig:
+        #  ?s ?p ?X, ?X ?q ?Y, ?Y ?r ?t
+        # splitvar X:
+        #  ?s ?p ?Z, ?X ?q ?Y, ?Y ?r ?t
+        # try merging once, might lead to this:
+        #  ?s ?p ?Y, ?X ?q ?Y, ?Y ?r ?t
+        gp = mutate_merge_var(gp)
+        if not fit_to_live(gp):
+            return child
+    return gp
 
 
 def mutate_merge_var(child, pb_mv_mix=config.MUTPB_MV_MIX):
@@ -964,7 +976,7 @@ def generate_variable_patterns(count):
         else:
             gp = generate_variable_pattern(dist)
         res.append(gp)
-    # TODO: can happen that pattern is not fit_to_live:
+    # can happen that pattern is too long and thereby not fit_to_live:
     # can be > config.MAX_PATTERN_LENGTH or > config.MAX_PATTERN_VARS.
     # The latter is sometimes desired if those variables go through
     # mutate_fix_var before ending up in any population
