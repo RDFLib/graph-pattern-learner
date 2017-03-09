@@ -37,12 +37,14 @@ _nsm.bind('void', namespace.VOID)
 _nsm.bind('dbpedia', 'http://dbpedia.org/resource/')  # decurification fallback
 _nsm.bind('dbr', 'http://dbpedia.org/resource/')  # will curify as this
 _nsm.bind('dbc', 'http://dbpedia.org/resource/Category:')
+_nsm.bind('dbt', 'http://dbpedia.org/resource/Template:')
 _nsm.bind('dbo', 'http://dbpedia.org/ontology/')
 _nsm.bind('dbp', 'http://dbpedia.org/property/')
 _nsm.bind('fb', 'http://rdf.freebase.com/')
 _nsm.bind('wd', 'http://www.wikidata.org/entity/')
 _nsm.bind('gold', 'http://purl.org/linguistics/gold/')
 _nsm.bind('prov', 'http://www.w3.org/ns/prov#')
+_nsm.bind('schema', 'http://schema.org/')
 
 
 class URIShortener(object):
