@@ -55,4 +55,7 @@ echo "done, bundle size:"
 du -sh "$bundle"
 
 ls logs/*warning* 2> /dev/null || true
-ls logs/*error* 2> /dev/null && exit 2 || true
+if ls logs/*error* 2> /dev/null ; then
+    cp -a logs/*error* "$bundle/"
+    exit 2
+fi
