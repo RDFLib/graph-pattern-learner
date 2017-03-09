@@ -1,4 +1,8 @@
 # coding=utf-8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 from graph_pattern import canonicalize
 from graph_pattern import GPFitness
 from graph_pattern import GPFitnessTuple

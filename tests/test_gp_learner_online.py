@@ -1,4 +1,8 @@
 # coding=utf-8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 """Online tests for gp_learner.
 
 The following tests are depending on the endpoint and its loaded datasets.
