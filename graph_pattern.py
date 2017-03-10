@@ -16,6 +16,7 @@ from itertools import chain
 import logging
 import random
 import string
+import textwrap
 
 import deap
 import deap.base
@@ -499,7 +500,65 @@ class GraphPattern(tuple):
             values=None,
             limit=None,
     ):
-        """Generates a SPARQL query from the graph pattern.
+        """Generates a SPARQL select query from the graph pattern.
+
+        Examples:
+        >>> p = rdflib.Variable('p')
+        >>> q = rdflib.Variable('q')
+        >>> x = rdflib.Variable('x')
+        >>> dbr = rdflib.Namespace('http://dbpedia.org/resource/')
+        >>> dbo = rdflib.Namespace('http://dbpedia.org/ontology/')
+        >>> wikilink = dbo['wikiPageWikiLink']
+
+        >>> gp = GraphPattern((
+        ...     (SOURCE_VAR, p, q),
+        ...     (q, wikilink, TARGET_VAR),
+        ... ))
+        >>> print(gp.to_sparql_select_query())
+        SELECT ?p ?q ?source ?target WHERE {
+         ?q <http://dbpedia.org/ontology/wikiPageWikiLink> ?target .
+         ?source ?p ?q .
+        }
+        <BLANKLINE>
+
+        >>> print(gp.to_sparql_select_query(
+        ...     projection=(SOURCE_VAR, p),
+        ...     distinct=True,
+        ...     count=(COUNT_VAR, q),
+        ...     bind={SOURCE_VAR: dbr['Test'], TARGET_VAR: q, x: dbr['X']}
+        ... ))
+        PREFIX dbr: <http://dbpedia.org/resource/>
+        SELECT ?source ?p COUNT(DISTINCT ?q) as ?count WHERE {
+         ?q <http://dbpedia.org/ontology/wikiPageWikiLink> ?target .
+         ?source ?p ?q .
+         FILTER(
+          ?source=dbr:Test &&
+          ?target=?q
+         )
+        }
+        <BLANKLINE>
+
+        >>> gtps = [
+        ...     (dbr['Berlin'], dbr['Germany']),
+        ...     (dbr['Amnesia'], dbr['Memory']),
+        ...     (dbr['Paris'], dbr['France']),
+        ...     (dbr['Rome'], dbr['Egypt']),
+        ... ]
+        >>> values = {(SOURCE_VAR, TARGET_VAR): gtps}
+        >>> print(gp.to_sparql_select_query(values=values, limit=10))
+        PREFIX dbr: <http://dbpedia.org/resource/>
+        SELECT ?p ?q ?source ?target WHERE {
+         VALUES (?source ?target) {
+          (dbr:Berlin dbr:Germany)
+          (dbr:Amnesia dbr:Memory)
+          (dbr:Paris dbr:France)
+          (dbr:Rome dbr:Egypt)
+         }
+         ?q <http://dbpedia.org/ontology/wikiPageWikiLink> ?target .
+         ?source ?p ?q .
+        }
+        LIMIT 10
+        <BLANKLINE>
 
         Args:
             projection: which variables to select on, by default all vars.
@@ -527,28 +586,26 @@ class GraphPattern(tuple):
         if projection is None:
             projection = sorted([v for v in self.vars_in_graph])
         assert projection or count
-        res = 'SELECT '
-        if distinct and not count:
-            res += 'DISTINCT '
-        res += '%s ' % ' '.join([v.n3() for v in projection])
-        if count:
-            res += 'COUNT('
-            if distinct:
-                res += 'DISTINCT '
-            res += '%s' % ' '.join([
-                c.n3() if isinstance(c, Variable) else str(c)
-                for c in count[1:]
-            ])
-            res += ') as %s ' % count[0].n3()
-        res += 'WHERE {\n'
-        res += self._sparql_query_pattern_part(
-            bind=bind,
-            values=values,
-            indent=' ',
-        )
-        res += '}\n'
-        if limit is not None:
-            res += 'LIMIT %d' % limit
+
+        res = "SELECT %(dist)s%(proj)s%(count)s WHERE {\n%(qpp)s}\n%(lim)s" % {
+            'dist': 'DISTINCT ' if distinct and not count else '',
+            'proj': ' '.join([v.n3() for v in projection]),
+            'count': (' COUNT(%s%s) as %s' % (
+                'DISTINCT ' if distinct else '',
+                ' '.join([
+                    c.n3() if isinstance(c, Variable) else str(c)
+                    for c in count[1:]
+                ]),
+                count[0].n3()
+            )) if count else '',
+            'qpp': self._sparql_query_pattern_part(
+                bind=bind,
+                values=values,
+                indent=' ',
+            ),
+            'lim': ('LIMIT %d\n' % limit) if limit is not None else '',
+        }
+        res = textwrap.dedent(res)
         return self._sparql_prefix(res)
 
     def to_sparql_ask_query(
@@ -576,24 +633,39 @@ class GraphPattern(tuple):
             isinstance(next(six.itervalues(values)), Iterable)
         )
 
-        if values is None:
-            values = {}
-        res = self._sparql_values_part(values, indent)
+        res = ''
+        if values:
+            res = indent + self._sparql_values_part(values, indent) + '\n'
+        res += indent + self._sparql_triples_part(indent) + '\n'
+        if bind:
+            res += '%sFILTER(\n%s\n%s)\n' % (
+                indent,
+                ' &&\n'.join([
+                    '%s %s=%s' % (indent, k.n3(), self.curify(v))
+                    for k, v in sorted(bind.items())
+                    if k in self.vars_in_graph
+                ]),
+                indent,
+            )
+        return res
+
+    def _sparql_triples_part(self, indent=''):
         tres = []
         for s, p, o in self:
             tres.append('%s %s %s .' % (s.n3(), p.n3(), o.n3()))
-        res += indent + ('\n' + indent).join(tres) + '\n'
-        if bind:
-            res += '%sFILTER(\n' % indent
-            filters = ' &&\n'.join([
-                '%s %s=%s' % (indent, k.n3(), self.curify(v))
-                for k, v in bind.items()
-                if k in self.vars_in_graph
-            ])
-            res += filters + '\n%s)\n' % indent
-        return res
+        return ('\n' + indent).join(tres)
 
-    def _sparql_values_part(self, values, indent=' '):
+    def _sparql_values_part(self, values, indent=''):
+        """Returns a SPARQL VALUES block as used in other methods.
+
+        Values are curified by default, as it can be thousands and drastically
+        reduces resulting query sizes.
+
+        :param values: Dictionary of value to list of value instances. Both can
+            and most likely will be tuples.
+        :param indent: Indentation for all lines "in between".
+        :return: Values block.
+        """
         res = ''
         for vars_, value_tuple_list in values.items():
             vars_str = ' '.join([v.n3() for v in vars_])
@@ -601,88 +673,125 @@ class GraphPattern(tuple):
                 '%s (%s)' % (indent, ' '.join([self.curify(v) for v in vt]))
                 for vt in value_tuple_list
             ])
-            res += '%sVALUES (%s) {\n' % (indent, vars_str)
-            res += value_tuple_list_str + '\n'
-            res += '%s}\n' % indent
+            res += 'VALUES (%s) {\n%s\n%s}' % (
+                vars_str, value_tuple_list_str, indent)
         return res
 
     def to_combined_ask_count_query(self, values):
         """A combined query for a complete gp that does ask and counts in one.
 
-        Meant to perform a query like this:
-         SELECT ?source ?target ?ask ?count WHERE {
-          VALUES (?source ?target) {
-           (dbr:Berlin dbr:Germany)
-           (dbr:Amnesia dbr:Memory)
-           (dbr:Paris dbr:France)
-           (dbr:Rome dbr:Egypt)
-           ... long list ...
-          }
-          BIND(EXISTS{
-             ?source dbo:wikiPageWikiLink ?target .
-             ?source a dbo:PopulatedPlace .
-             ?target a schema:Country .
-          } AS ?ask)
-          OPTIONAL {
-           {
-            SELECT ?source COUNT(DISTINCT ?target) as ?count WHERE {
-             ?source dbo:wikiPageWikiLink ?target .
-             ?source a dbo:PopulatedPlace .
-             ?target a schema:Country .
-            }
+        Example:
+        >>> p = rdflib.Variable('p')
+        >>> dbr = rdflib.Namespace('http://dbpedia.org/resource/')
+        >>> dbo = rdflib.Namespace('http://dbpedia.org/ontology/')
+        >>> wikilink = dbo['wikiPageWikiLink']
+        >>> schema = rdflib.Namespace('http://schema.org/')
+        >>> gtps = [
+        ...     (dbr['Berlin'], dbr['Germany']),
+        ...     (dbr['Amnesia'], dbr['Memory']),
+        ...     (dbr['Paris'], dbr['France']),
+        ...     (dbr['Rome'], dbr['Egypt']),
+        ... ]
+        >>> values = {(SOURCE_VAR, TARGET_VAR): gtps}
+
+        >>> gp = GraphPattern([
+        ...     (SOURCE_VAR, p, dbo['PopulatedPlace']),
+        ...     (SOURCE_VAR, wikilink, TARGET_VAR),
+        ...     (TARGET_VAR, p, schema['Country']),
+        ... ])
+        >>> print(gp.to_combined_ask_count_query(values))
+        PREFIX dbr: <http://dbpedia.org/resource/>
+        SELECT ?source ?target ?ask ?count WHERE {
+         VALUES (?source ?target) {
+          (dbr:Berlin dbr:Germany)
+          (dbr:Amnesia dbr:Memory)
+          (dbr:Paris dbr:France)
+          (dbr:Rome dbr:Egypt)
+         }
+         BIND(EXISTS{
+            ?source ?p <http://dbpedia.org/ontology/PopulatedPlace> .
+            ?source <http://dbpedia.org/ontology/wikiPageWikiLink> ?target .
+            ?target ?p <http://schema.org/Country> .
+         } AS ?ask)
+         OPTIONAL {
+          {
+           SELECT ?source COUNT(DISTINCT ?target) as ?count WHERE {
+            ?source ?p <http://dbpedia.org/ontology/PopulatedPlace> .
+            ?source <http://dbpedia.org/ontology/wikiPageWikiLink> ?target .
+            ?target ?p <http://schema.org/Country> .
            }
           }
          }
+        }
+        <BLANKLINE>
         """
         vars_ = (SOURCE_VAR, TARGET_VAR, ASK_VAR, COUNT_VAR)
-        res = 'SELECT ' + ' '.join([v.n3() for v in vars_]) + ' WHERE {\n'
-        res += self._sparql_values_part(values)
-
-        # BIND part (ASK)
-        res += ' BIND(EXISTS{\n'
-        tres = []
-        for s, p, o in self:
-            tres.append('%s %s %s .' % (s.n3(), p.n3(), o.n3()))
-        indent = ' ' * 4
-        triples = indent + ('\n' + indent).join(tres) + '\n'
-        res += triples
-        res += ' } AS %s)\n' % ASK_VAR.n3()
-
-        # Subquery part (COUNT)
-        res += ' OPTIONAL {\n' \
-               '  {\n' \
-               '   SELECT %s COUNT(DISTINCT %s) as %s WHERE {\n' % (
-                   SOURCE_VAR.n3(),
-                   TARGET_VAR.n3(),
-                   COUNT_VAR.n3(),
-               )
-        res += triples
-        res += '   }\n' \
-               '  }\n' \
-               ' }\n' \
-               '}\n'
-        return self._sparql_prefix(res)
+        res = """\
+            SELECT %(proj)s WHERE {
+             %(values)s
+             BIND(EXISTS{
+                %(triples)s
+             } AS %(ask)s)
+             OPTIONAL {
+              {
+               SELECT %(source)s COUNT(DISTINCT %(target)s) as %(count)s WHERE {
+                %(triples)s
+               }
+              }
+             }
+            }
+        """ % {
+            'proj': ' '.join([v.n3() for v in vars_]),
+            'values': self._sparql_values_part(values, indent='             '),
+            'triples': self._sparql_triples_part(indent='                '),
+            'ask': ASK_VAR.n3(),
+            'source': SOURCE_VAR.n3(),
+            'target': TARGET_VAR.n3(),
+            'count': COUNT_VAR.n3(),
+        }
+        return self._sparql_prefix(textwrap.dedent(res))
 
     def to_count_var_over_values_query(self, var, vars_, values, limit):
         """Counts possible fulfilling substitutions for var.
 
-        Meant to perform a query like this:
-         SELECT ?var count(*) as ?count WHERE {
-          VALUES (?source ?target) {
-           (dbr:Adolescence dbr:Youth)
-           (dbr:Adult dbr:Child)
-           (dbr:Angel dbr:Heaven)
-           (dbr:Arithmetic dbr:Mathematics)
-          }
-          {
-           SELECT DISTINCT ?source ?target ?var WHERE {
-            ?source ?edge ?target .
-            ?var dbo:wikiPageWikiLink ?target .
-           }
+        Example:
+        >>> dbr = rdflib.Namespace('http://dbpedia.org/resource/')
+        >>> dbo = rdflib.Namespace('http://dbpedia.org/ontology/')
+        >>> wikilink = dbo['wikiPageWikiLink']
+        >>> e = rdflib.Variable('edge')
+        >>> v = rdflib.Variable('var')
+        >>> gtps = [
+        ...     (dbr['Adolescence'], dbr['Youth']),
+        ...     (dbr['Adult'], dbr['Child']),
+        ...     (dbr['Angel'], dbr['Heaven']),
+        ...     (dbr['Arithmetic'], dbr['Mathematics']),
+        ... ]
+        >>> values = {(SOURCE_VAR, TARGET_VAR): gtps}
+        >>> vars_ = (SOURCE_VAR, TARGET_VAR)
+
+        >>> gp = GraphPattern((
+        ...     (SOURCE_VAR, e, TARGET_VAR),
+        ...     (v, wikilink, TARGET_VAR),
+        ... ))
+        >>> print(gp.to_count_var_over_values_query(v, vars_, values, 10))
+        PREFIX dbr: <http://dbpedia.org/resource/>
+        SELECT ?var COUNT(*) as ?count WHERE {
+         VALUES (?source ?target) {
+          (dbr:Adolescence dbr:Youth)
+          (dbr:Adult dbr:Child)
+          (dbr:Angel dbr:Heaven)
+          (dbr:Arithmetic dbr:Mathematics)
+         }
+         {
+          SELECT DISTINCT ?source ?target ?var WHERE {
+           ?source ?edge ?target .
+           ?var <http://dbpedia.org/ontology/wikiPageWikiLink> ?target .
           }
          }
-         ORDER BY desc(?count)
-         LIMIT 10
+        }
+        ORDER BY DESC(?count)
+        LIMIT 10
+        <BLANKLINE>
 
         :param var: Variable to count over.
         :param vars_: List of vars to fix values for (e.g. ?source, ?target).
@@ -690,29 +799,26 @@ class GraphPattern(tuple):
         :param limit: Limit for result size.
         :return: Query String.
         """
-        res = 'SELECT %s COUNT(*) as %s WHERE {\n' % (var.n3(), COUNT_VAR.n3())
-        res += self._sparql_values_part(values)
-
-        res += ' {\n' \
-               '  SELECT DISTINCT %s %s WHERE {\n' % (
-                   ' '.join([v.n3() for v in vars_]),
-                   var.n3(),
-               )
-
-        # triples part
-        tres = []
-        for s, p, o in self:
-            tres.append('%s %s %s .' % (s.n3(), p.n3(), o.n3()))
-        indent = ' ' * 3
-        triples = indent + ('\n' + indent).join(tres) + '\n'
-        res += triples
-
-        res += '  }\n' \
-               ' }\n' \
-               '}\n'
-        res += 'ORDER BY DESC(%s)\n' % COUNT_VAR.n3()
-        res += 'LIMIT %d\n' % limit
-        return self._sparql_prefix(res)
+        res = """\
+            SELECT %(var)s COUNT(*) as %(count)s WHERE {
+             %(values)s
+             {
+              SELECT DISTINCT %(proj)s %(var)s WHERE {
+               %(triples)s
+              }
+             }
+            }
+            ORDER BY DESC(%(count)s)
+            LIMIT %(limit)d
+        """ % {
+            'var': var.n3(),
+            'count': COUNT_VAR.n3(),
+            'values': self._sparql_values_part(values, indent='             '),
+            'proj': ' '.join([v.n3() for v in vars_]),
+            'triples': self._sparql_triples_part('               '),
+            'limit': limit,
+        }
+        return self._sparql_prefix(textwrap.dedent(res))
 
     def to_dict(self):
         return {
