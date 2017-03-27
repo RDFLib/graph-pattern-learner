@@ -228,8 +228,6 @@ def canonicalize(gp, shorten_varnames=True):
 
     """
     cgp = canonicalize_sparql_bgp(gp, fixed_vars={SOURCE_VAR, TARGET_VAR})
-    assert len(gp) == len(cgp), \
-        'length changed via canonicalization:\n%s\nto\n%s' % (gp, cgp)
     mapping = {}
     if shorten_varnames:
         vars_ = set(chain.from_iterable(cgp))
@@ -238,7 +236,10 @@ def canonicalize(gp, shorten_varnames=True):
         ])
         for i, v in enumerate(vars_):
             mapping[v] = Variable('vcb%d' % i)
-    return GraphPattern(cgp, mapping=mapping)
+    res = GraphPattern(cgp, mapping=mapping)
+    assert len(gp) == len(cgp) == len(res), \
+        'length changed in canonicalization:\n%s\n%s\n%s' % (gp, cgp, res)
+    return res
 
 
 class GPFitness(deap.base.Fitness):

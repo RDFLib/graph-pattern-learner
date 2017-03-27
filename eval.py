@@ -437,6 +437,8 @@ def main():
                 if pattern not in _patterns:
                     n += 1
                     print('%d: Pattern id %d: %s' % (n, i, pattern))
+                    assert len(pattern) == length, \
+                        'pattern too short: %s' % pattern
                     _patterns.add(pattern)
     else:
         # run potential canonicalization inline
