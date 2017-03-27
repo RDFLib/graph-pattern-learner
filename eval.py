@@ -428,7 +428,7 @@ def main():
         # run canonicalization in parallel
         # chunks used for efficiency and to hinder parallel_map from trying to
         # eat up all candidates first
-        for chunk in chunker(pg, 10000):
+        for chunk in chunker(pg, 100000):
             cgps = parallel_map(
                 lambda res: (res[0], canonicalize(res[1]) if res[1] else None),
                 chunk
@@ -450,16 +450,22 @@ def main():
 
     # testing flipped edges (only works if we're working with canonicals)
     if canonical:
+        mod_gps = []
         for gp in _patterns:
             for i in range(length):
                 mod_gp = gp.flip_edge(i)
                 # can happen that flipped edge was there already
                 if len(mod_gp) == length:
-                    cmod_pg = canonicalize(mod_gp)
-                    assert cmod_pg in _patterns, \
-                        'gp: %smod_gp: %scanon: %s_patterns: %r...' % (
-                            gp, mod_gp, cmod_pg, list(_patterns)[:20]
-                        )
+                    mod_gps.append(mod_gp)
+        cmod_pgs = parallel_map(
+            canonicalize,
+            mod_gps
+        )
+        for i, cmod_pg in enumerate(cmod_pgs):
+            assert cmod_pg in _patterns, \
+                'not in patterns: mod_gp: %scanon: %s_patterns: %r...' % (
+                    mod_gps[i], cmod_pg, list(_patterns)[:20]
+                )
 
 
 if __name__ == '__main__':
