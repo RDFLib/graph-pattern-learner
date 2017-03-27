@@ -48,7 +48,7 @@ python -m scoop -n8 run.py --sparql_endpoint="$sparql" --predict='train_set' "$@
 echo "predict test set"
 python -m scoop -n8 run.py --sparql_endpoint="$sparql" --predict='test_set' "$@" 2>&1 | tee >(gzip > "$bundle"/predict_test.log.gz)
 
-echo "moving training results ot $bundle"
+echo "moving training results to $bundle"
 mv results/results* results/top_graph_patterns* "$bundle/"
 
 echo "done, bundle size:"
