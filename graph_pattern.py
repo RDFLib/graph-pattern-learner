@@ -228,6 +228,8 @@ def canonicalize(gp, shorten_varnames=True):
 
     """
     cgp = canonicalize_sparql_bgp(gp, fixed_vars={SOURCE_VAR, TARGET_VAR})
+    assert len(gp) == len(cgp), \
+        'length changed via canonicalization:\n%s\nto\n%s' % (gp, cgp)
     mapping = {}
     if shorten_varnames:
         vars_ = set(chain.from_iterable(cgp))

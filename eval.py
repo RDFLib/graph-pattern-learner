@@ -204,6 +204,7 @@ def patterns(
             loops=loops,
             node_edge_joint=node_edge_joint,
     )):
+        assert(len(num_pat)) == length, 'too short: %s' % (num_pat,)
         flat_num_pat = [v for t in num_pat for v in t]
         all_numbers = set(flat_num_pat)
 
@@ -248,6 +249,8 @@ def patterns(
             var_map[t] = TARGET_VAR
             gp = GraphPattern(
                 tuple([tuple([var_map[i] for i in trip]) for trip in num_pat]))
+            assert len(gp) == length, \
+                'gp too short: num %s\n%s' % (num_pat, gp)
 
             # exclude patterns which are isomorphic to already generated ones
             if exclude_isomorphic:
