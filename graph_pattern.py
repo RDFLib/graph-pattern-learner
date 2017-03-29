@@ -104,10 +104,16 @@ def canonicalize_gp_to_rdf_graph(gp, fixed_vars=None):
         assert triple_bnode not in triple_bnodes, \
             "%r triple_bnode %r not meant to be in triple_bnodes %r" % (
                 gp, triple_bnode, triple_bnodes)
-        s, p, o = [
-            BNode(i) if isinstance(i, Variable) and i not in fixed_vars else i
-            for i in t
-        ]
+        trip = []
+        for i in t:
+            if isinstance(i, Variable):
+                if i in fixed_vars:
+                    trip.append(URIRef('urn:gp_learner:fixed_var:%s' % i))
+                else:
+                    trip.append(BNode(i))
+            else:
+                trip.append(i)
+        s, p, o = trip
         g.add((triple_bnode, RDF['type'], RDF['Statement']))
         g.add((triple_bnode, RDF['subject'], s))
         g.add((triple_bnode, RDF['predicate'], p))
@@ -125,7 +131,17 @@ def canonicalize_rdf_cg_to_gp(cg):
             cg.value(triple_bnode, p)
             for p in [RDF['subject'], RDF['predicate'], RDF['object']]
         ]
-        t = tuple([Variable(i) if isinstance(i, BNode) else i for i in t])
+        trip = []
+        for i in t:
+            if isinstance(i, BNode):
+                trip.append(Variable(i))
+            else:
+                if isinstance(i, URIRef) and \
+                        i.startswith('urn:gp_learner:fixed_var:'):
+                    trip.append(Variable(i[25:]))
+                else:
+                    trip.append(i)
+        t = tuple(trip)
         cgp.append(t)
     return sorted(cgp)
 
@@ -172,20 +188,6 @@ def canonicalize_sparql_bgp(gp, fixed_vars=None):
     g = canonicalize_gp_to_rdf_graph(gp, fixed_vars)
     cg = rdflib.compare.to_canonical_graph(g)
     cgp = canonicalize_rdf_cg_to_gp(cg)
-    if len(gp) != len(cgp):
-        # bug in lib: rdflib.compare.to_canonical_graph(g) sometimes collapses
-        # distinct bnodes
-        # see https://github.com/RDFLib/rdflib/issues/494
-        # if this happens, one triple from the original pattern is missing,
-        # which means that the lengths are different
-        logger.warning(
-            'GraphPattern canonicalization failed, returning original:\n%r\n'
-            'SPARQL BGP RDF Reification-Graph:\n%r\n'
-            'Canonicalized RDF Graph:\n%r\n'
-            'Canonicalized Graph Pattern:\n%r\n',
-            gp, list(g), list(cg), cgp
-        )
-        return gp
     return cgp
 
 
@@ -227,19 +229,36 @@ def canonicalize(gp, shorten_varnames=True):
     True
 
     """
-    cgp = canonicalize_sparql_bgp(gp, fixed_vars={SOURCE_VAR, TARGET_VAR})
+    cbgp = canonicalize_sparql_bgp(gp, fixed_vars={SOURCE_VAR, TARGET_VAR})
     mapping = {}
     if shorten_varnames:
-        vars_ = set(chain.from_iterable(cgp))
+        vars_ = set(chain.from_iterable(cbgp))
         vars_ = sorted([
             v for v in vars_ if isinstance(v, Variable) and v.startswith('cb')
         ])
         for i, v in enumerate(vars_):
             mapping[v] = Variable('vcb%d' % i)
-    res = GraphPattern(cgp, mapping=mapping)
-    assert len(gp) == len(cgp) == len(res), \
-        'length changed in canonicalization:\n%s\n%s\n%s' % (gp, cgp, res)
-    return res
+    cgp = GraphPattern(cbgp, mapping=mapping)
+
+    if not (
+        len(gp) == len(cbgp) == len(cgp)
+        and len(gp.nodes) == len(cgp.nodes)
+        and len(gp.edges) == len(cgp.edges)
+        and sorted(gp.identifier_counts().values()) ==
+            sorted(cgp.identifier_counts().values())
+    ):
+        # canonicalization should never change any of the features above, but it
+        # did before (e.g., https://github.com/RDFLib/rdflib/issues/494 ).
+        # this is a last resort safety-net
+        logger.warning(
+            'GraphPattern canonicalization failed, returning original:\n%r\n'
+            'Canonicalized RDF Graph:\n%r\n'
+            'Canonicalized Graph Pattern:\n%r\n',
+            gp, cbgp, cgp
+        )
+        return gp
+
+    return cgp
 
 
 class GPFitness(deap.base.Fitness):

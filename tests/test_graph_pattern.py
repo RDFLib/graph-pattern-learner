@@ -257,10 +257,21 @@ def test_graph_pattern_canonicalization():
     # itself instead of a canonical representation of it. We just test the len
     # in case it's fixed in rdflib.
     gp = GraphPattern((
-        (SOURCE_VAR, Variable(u'vcb0'), TARGET_VAR),
-        (SOURCE_VAR, Variable(u'vrBYUk8'), TARGET_VAR),
-        (TARGET_VAR, Variable(u'vrBYUk8'), SOURCE_VAR),
-        (TARGET_VAR, Variable(u'vrvGapn'), SOURCE_VAR)))
+        (SOURCE_VAR, Variable('vcb0'), TARGET_VAR),
+        (SOURCE_VAR, Variable('vrBYUk8'), TARGET_VAR),
+        (TARGET_VAR, Variable('vrBYUk8'), SOURCE_VAR),
+        (TARGET_VAR, Variable('vrvGapn'), SOURCE_VAR)))
+    cgp = canonicalize(gp)
+    assert len(gp) == len(cgp)
+
+    # test for a bug in canonicalization when it didn't rewrite fixed
+    gp = GraphPattern((
+        (TARGET_VAR, Variable('v0'), SOURCE_VAR),
+        (TARGET_VAR, Variable('v0'), Variable('v1')),
+        (TARGET_VAR, Variable('v2'), Variable('v1')),
+        (TARGET_VAR, Variable('v2'), Variable('v3')),
+        (TARGET_VAR, Variable('v4'), Variable('v5')),
+    ))
     cgp = canonicalize(gp)
     assert len(gp) == len(cgp)
 
