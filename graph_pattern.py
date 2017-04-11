@@ -201,11 +201,11 @@ def canonicalize(gp, shorten_varnames=True):
 
     >>> U = URIRef
     >>> V = Variable
-    >>> gp1 = [
+    >>> gp1 = GraphPattern([
     ...     (V('blub'), V('bar'), U('blae')),
     ...     (V('foo'), V('bar'), U('bla')),
     ...     (SOURCE_VAR, V('poo'), TARGET_VAR),
-    ... ]
+    ... ])
     >>> cgp = canonicalize(gp1)
     >>> v_poo = cgp[[t[2] for t in cgp].index(TARGET_VAR)][1]
     >>> v_foo = cgp[[t[2] for t in cgp].index(U('bla'))][0]
@@ -220,15 +220,16 @@ def canonicalize(gp, shorten_varnames=True):
     True
 
     And again in a different order:
-    >>> gp2 = [
+    >>> gp2 = GraphPattern([
     ...     (SOURCE_VAR, V('bla'), TARGET_VAR),
     ...     (V('blub'), V('bli'), U('bla')),
     ...     (V('bluub'), V('bli'), U('blae')),
-    ... ]
+    ... ])
     >>> cgp == canonicalize(gp2)
     True
 
     """
+    assert isinstance(gp, GraphPattern)
     cbgp = canonicalize_sparql_bgp(gp, fixed_vars={SOURCE_VAR, TARGET_VAR})
     mapping = {}
     if shorten_varnames:
