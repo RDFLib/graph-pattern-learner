@@ -22,13 +22,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--loglevel",
-        help="desired log level",
-        action="store",
-        default=logging.INFO,
-    )
-
-    parser.add_argument(
         '--sparql_endpoint',
         help="the SPARQL endpoint to query",
         action="store",
