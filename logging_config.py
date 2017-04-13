@@ -104,8 +104,10 @@ class CompressedRotatingFileHandler(logging.handlers.RotatingFileHandler):
 
 # set up logging (keep multiprocessing in mind):
 LOG_DIR = os.getenv('GP_LEARNER_LOG_DIR', 'logs')
-if not os.path.exists(LOG_DIR):
+try:
     os.mkdir(LOG_DIR)
+except OSError:
+    pass
 LOG_SUFFIX = '.log'
 START_TIME = time.strftime('%Y-%m-%dT%H-%M-%S')
 pid = os.getpid()
