@@ -5,6 +5,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from collections import Counter
 from copy import deepcopy
 from itertools import combinations
 from itertools import combinations_with_replacement
@@ -101,6 +102,51 @@ def numerical_patterns(
         # exclude multiple equivalent triples
         return
 
+    if i >= 1:
+        # count "heads": if current one is larger and occurs more
+        # often than lower ones, swapping the two would lead to a numeration
+        # that has been encountered before:
+        # 123 134 135 -(2->5, 3->2, 4->3, 5->4)-> 123 124 152 (smaller!)
+        # 112 113 221 222 --> 111 112 221 223 (smaller!)
+        # 111 112 211 212 213 311 312 323 324 (is smallest!)
+        # There's an exception to this rule:
+        # triples, then doubles, then repeated singles are "smallest":
+        #   111 112 211 212 213 311 312 3__
+        #       h: hhh hh_
+        #       1:   1   1
+        #       2:   0   3
+        #       3:   0   1
+
+        # FIXME: this breaks for: len(3) all canonical
+
+        cur_head = tuple(_partial_pattern[i][:j+1])
+        if cur_head > tuple(_partial_pattern[0][:j+1]):
+            # cur_head is larger than first (ranks has 2 elements)
+            c = Counter([tuple(t[:j+1]) for t in _partial_pattern[:i+1]])
+            ranks = c.most_common()[:2]
+            if ranks[0][0] == cur_head and ranks[0][1] > ranks[1][1]:
+                # we should probably switch, but not if previous heads contain
+                # more triple or pair equals than current
+                cnt = Counter(
+                    [tuple(t[:3]) for t in _partial_pattern[:i + 1]] +  # trips
+                    [tuple(t[:2]) for t in _partial_pattern[:i + 1]]  # pairs
+                )
+                s = _partial_pattern[i][0]
+                cc = cnt[(s, s)]
+                ccc = cnt[(s, s, s)]
+
+                for h in range(s - 1, 0, -1):
+                    # if previous hhh and hh_ counts are higher don't prune
+                    if (cnt[(h, h, h)], cnt[(h, h)]) > (ccc, cc):
+                        break
+                else:
+                    # the cur_head triple is the top occurring one
+                    logger.debug(
+                        'swapping %s with %s would be smaller' % (
+                            cur_head, ranks[1][0]
+                        )
+                    )
+                    return
 
     # check if nodes and edges are disjoint
     if not node_edge_joint:
@@ -391,8 +437,8 @@ def main():
     # ----+------+-----+--------------+-------------------+-------------------+
     #   1 |    8 |  12 |           12 |                27 |                12 |
     #   2 |  146 | 469 |          693 |              7750 |              1314 |
-    #   3 |      |     |        47478 |           6666891 |            151534 |
-    #   4 |      |     |              |       11671285626 |          20884300 |
+    #   3 |      |     |        47478 |           6666891 |            131982 |
+    #   4 |      |     |              |       11671285626 |          15690030 |
     #   5 |      |     |              |    34549552710596 |        3461471628 |
 
     # len | typical     | candidates     | candidates  |
@@ -400,13 +446,12 @@ def main():
     # ----+-------------+----------------+-------------+
     #   1 |           2 |              4 |           2 |
     #   2 |          28 |            153 |          54 |
-    #   3 |         486 |          17296 |        1614 |
-    #   4 |       10374 |        3921225 |       59654 |
-    #   5 |             |     1488847536 |     2707960 |
-
+    #   3 |         486 |          17296 |        1316 |
+    #   4 |       10374 |        3921225 |       38566 |
+    #   5 |      265471 |     1488847536 |     1410342 |
     # typical above means none of (loops, nej, pcon, source_target_edges)
 
-    length = 5
+    length = 3
     canonical = True
 
     _patterns = set()
@@ -415,10 +460,10 @@ def main():
 
     pg = patterns(
         length,
-        loops=False,
-        node_edge_joint=False,
-        p_only_connected=False,
-        source_target_edges=False,
+        loops=True,
+        node_edge_joint=True,
+        p_only_connected=True,
+        source_target_edges=True,
         exclude_isomorphic=canonical and not scoop.IS_RUNNING,
         count_candidates_only=False,
     )
