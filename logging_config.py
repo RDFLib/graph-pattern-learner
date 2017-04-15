@@ -105,7 +105,7 @@ class CompressedRotatingFileHandler(logging.handlers.RotatingFileHandler):
 # set up logging (keep multiprocessing in mind):
 LOG_DIR = os.getenv('GP_LEARNER_LOG_DIR', 'logs')
 try:
-    os.mkdir(LOG_DIR)
+    os.makedirs(LOG_DIR)
 except OSError:
     pass
 LOG_SUFFIX = '.log'

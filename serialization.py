@@ -169,7 +169,10 @@ def save_results(
 
     if kwds:
         res.update(**kwds)
-
+    try:
+        os.makedirs(path.dirname(file_path))
+    except OSError:
+        pass
     with gzip.open(file_path, 'w') as f:
         json.dump(res, f, indent=2)
     return file_path
