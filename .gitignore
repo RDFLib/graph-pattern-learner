@@ -1,0 +1,6 @@
+
+# ignore output, logging and venv folders
+logs/
+results/
+venv/
+
