@@ -471,6 +471,12 @@ class GraphPattern(tuple):
     def edges(self):
         return {p for _, p, _ in self}
 
+    def node_vars(self):
+        return {n for n in self.nodes if isinstance(n, Variable)}
+
+    def edge_vars(self):
+        return {p for p in self.edges if isinstance(p, Variable)}
+
     def triples_by_identifier(self, identifiers=None, positions=None):
         if identifiers is None:
             identifiers = self.identifier_counts()
