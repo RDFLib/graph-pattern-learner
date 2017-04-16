@@ -254,7 +254,7 @@ def print_results(
                 print_graph_pattern(gp, 0)
             if gp.mixed_node_edge_vars():
                 lazy_print_header()
-                print('mixed node and edge vars in pattern:')
+                print('edges and nodes joint in pattern:')
                 print_graph_pattern(gp, 0)
 
     print('\n\n\nCoverage stats:\nPatterns, Max Precision, Stimulus, Response')

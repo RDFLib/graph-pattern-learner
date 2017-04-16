@@ -904,7 +904,7 @@ class GraphPattern(tuple):
     def is_edge_connected_only(self):
         return self.is_connected(via_edges=True) and not self.is_connected()
 
-    def mixed_node_edge_vars(self):
+    def node_edge_joint(self):
         return self.nodes & self.edges
 
     def eccentricity(self, v=None):
