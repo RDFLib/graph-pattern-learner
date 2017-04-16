@@ -86,7 +86,7 @@ def URIRefify(links):
     return tuple([URIRef(l) for l in links])
 
 
-def get_semantic_associations(fn=None):
+def get_semantic_associations(fn=None, limit=None):
     if not fn:
         verified_mappings = get_verified_mappings()
         semantic_associations = get_dbpedia_pairs_from_mappings(
@@ -94,7 +94,7 @@ def get_semantic_associations(fn=None):
         semantic_associations = [URIRefify(p) for p in semantic_associations]
     else:
         semantic_associations = []
-        with open(fn) as f:
+        with gzip.open(fn) if fn.endswith('.gz') else open(fn) as f:
             # expects a file with one space separated pair of n3 encoded IRIs
             # per line
             r = csv.DictReader(
@@ -105,7 +105,9 @@ def get_semantic_associations(fn=None):
                 quoting=csv.QUOTE_NONE,
             )
             assert r.fieldnames == ['source', 'target']
-            for row in r:
+            for i, row in enumerate(r):
+                if limit and i >= limit:
+                    break
                 source = from_n3(row['source'].decode('UTF-8'))
                 target = from_n3(row['target'].decode('UTF-8'))
                 semantic_associations.append((source, target))
