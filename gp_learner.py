@@ -3,7 +3,6 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from __future__ import unicode_literals
 
 import sys
 if __name__ == '__main__':
@@ -1521,9 +1520,11 @@ def main(
         tests=False,
         **kwds
 ):
-    logging.info('encoding check: äöüß\U0001F385')
-    logging.info('encoding check: äöüß\U0001F385'.encode('utf-8'))
-    print('encoding check: äöüß\U0001F385')
+    logging.info('encoding check: äöüß🎅')  # logging utf-8 byte string
+    logging.info(u'encoding check: äöüß\U0001F385')  # logging unicode string
+    logging.info(u'encoding check: äöüß\U0001F385'.encode('utf-8'))  # convert
+    print('encoding check: äöüß🎅')  # printing utf-8 byte string
+    print(u'encoding check: äöüß\U0001F385')  # printing unicode string
 
     main_start = datetime.utcnow()
 

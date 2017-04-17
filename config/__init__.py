@@ -2,7 +2,6 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from __future__ import unicode_literals
 """Config for graph_learner.
 
 The actual config values can be found in defaults.py, the rest are helpers which

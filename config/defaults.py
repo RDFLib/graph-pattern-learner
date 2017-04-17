@@ -2,7 +2,6 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from __future__ import unicode_literals
 
 from os import path
 
@@ -35,7 +34,7 @@ PATTERN_P_CONNECTED = True  # include patterns connected via predicate not node
 OVERFITTING_PUNISHMENT = 0.25  # multiplier for single ?source or ?target match
 
 # SPARQL query:
-SPARQL_ENDPOINT = b'http://dbpedia.org/sparql'
+SPARQL_ENDPOINT = 'http://dbpedia.org/sparql'
 BATCH_SIZE = 384  # tested to rarely result in error recursions
 QUERY_TIMEOUT_FACTOR = 32  # timeout factor compared to a simplistic query
 QUERY_TIMEOUT_MIN = 2  # minimum query timeout in seconds
