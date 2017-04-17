@@ -5,6 +5,7 @@ from __future__ import division
 from __future__ import print_function
 
 from copy import deepcopy
+from itertools import chain
 from itertools import combinations
 from itertools import combinations_with_replacement
 from itertools import permutations
@@ -43,6 +44,12 @@ if not DEBUG:
     def quick_skip_debug_log(*args, **kwds):
         pass
     logger.debug = quick_skip_debug_log
+
+
+def powerset(iterable):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
 
 def numerical_patterns(
@@ -380,6 +387,30 @@ def pattern_generator(
         i, n_patterns, length
     )
     yield (n_patterns, None)
+
+
+def simple_paths(length):
+    """Returns all paths with given length between source and target.
+    
+    Paths look like:
+        (?source, ?ve1, ?vn1), (?vn1, ?ve2, ?vn2), ... (?vn(l-1), ?vel, ?target)
+    
+    As every edge can be flipped, there are 2**length returned paths.
+    """
+    assert length > 0
+    edges = [Variable('ve%d' % i) for i in range(1, length + 1)]
+    nodes = [Variable('vn%d' % i) for i in range(1, length)] + [TARGET_VAR]
+    s = SOURCE_VAR  # start at source
+    triples = []
+    for e, n in zip(edges, nodes):
+        triples.append((s, e, n))
+        s = n
+    for n, edges_to_flip in enumerate(powerset(range(length))):
+        gp = GraphPattern([
+            (o, p, s) if i in edges_to_flip else (s, p, o)
+            for i, (s, p, o) in enumerate(triples)
+        ])
+        yield n, gp
 
 
 @log_all_exceptions(logger)
