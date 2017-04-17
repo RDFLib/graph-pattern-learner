@@ -251,7 +251,7 @@ def print_results(
                 lazy_print_header()
                 print('edge connected only pattern:')
                 print_graph_pattern(gp, 0)
-            if gp.mixed_node_edge_vars():
+            if gp.node_edge_joint():
                 lazy_print_header()
                 print('edges and nodes joint in pattern:')
                 print_graph_pattern(gp, 0)
