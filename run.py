@@ -137,6 +137,11 @@ if __name__ == "__main__":
     config.arg_parse_config_vars(cfg_group)
 
     prog_args = vars(parser.parse_args())
+    # the following were aliased above, make sure they're updated globally
+    prog_args.update({
+        'SPARQL_ENDPOINT': prog_args['sparql_endpoint'],
+        'GT_ASSOCIATIONS_FILENAME': prog_args['associations_filename'],
+    })
     config.finalize(prog_args)
 
 
