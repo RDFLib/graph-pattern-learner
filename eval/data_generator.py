@@ -30,7 +30,7 @@ EVAL_DATA_NS = Namespace(EVAL_DATA_GRAPH + ':')
 def generate_triples(
         gp,
         stps,
-        vars_joint='none',
+        vars_joint='edges',
 ):
     """Generate a triple instantiation for gp wrt. the given stps.
     
@@ -78,7 +78,7 @@ def generate_triples(
     
     :param gp: The graph pattern to instantiate.
     :param stps: The source-target-pairs for which to fill 
-    :param vars_joint: One of ('none', 'edges', 'all'), default: 'none'.
+    :param vars_joint: One of ('none', 'edges', 'all'), default: 'edges'.
     :return: A triple generator.
     """
     assert isinstance(gp, GraphPattern)
@@ -113,6 +113,8 @@ def generate_triples(
 
 def main():
     from rdflib import Variable
+    # the following triple will timeout if vars_joint was 0:
+    # ?s a owl:Thing . t? a owl:Thing .
     gp = GraphPattern((
         (SOURCE_VAR, Variable('v1'), Variable('v2')),
         (TARGET_VAR, Variable('v3'), Variable('v2')),
