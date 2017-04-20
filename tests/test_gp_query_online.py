@@ -31,8 +31,8 @@ try:
 except IOError:
     from nose import SkipTest
     raise SkipTest(
-        "Can't establish connection to SPARQL_ENDPOINT %s, skipping tests in %s"
-        % (SPARQL_ENDPOINT, __file__))
+        "Can't establish connection to SPARQL_ENDPOINT:\n    %s\n"
+        "Skipping tests in\n    %s" % (SPARQL_ENDPOINT, __file__))
 
 a = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type')
 wpl = URIRef('http://dbpedia.org/ontology/wikiPageWikiLink')
