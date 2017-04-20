@@ -86,6 +86,9 @@ def curify(identifier, nsm=None, return_used=False):
 
     >>> curify(URIRef('http://dbpedia.org/resource/Category:Trees'))
     u'dbc:Trees'
+    
+    >>> curify(URIRef('http://en.wikipedia.org/wiki/Louis_C.K.'))
+    u'<http://en.wikipedia.org/wiki/Louis_C.K.>'
 
     :param identifier: an rdflib.URIRef.
     :param nsm: A rdflib NameSpaceManager, _nsm if None.
@@ -97,7 +100,11 @@ def curify(identifier, nsm=None, return_used=False):
         nsm = _nsm
     assert isinstance(identifier, (BNode, Literal, URIRef, Variable)), \
         'not an identifier: %r' % (identifier,)
-    if isinstance(identifier, URIRef):
+    if isinstance(identifier, URIRef) and not identifier.endswith('.'):
+        # TODO: report upstream (rdflib / virtuoso?)
+        # above is a quickfix for curies that end in '.' and cause trouble in
+        # SPARQL queries (at least on virtuoso)
+
         # noinspection PyBroadException
         try:
             prefix, ns, suffix = nsm.compute_qname(identifier, generate=False)
