@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 from collections import OrderedDict
+from copy import deepcopy
 
 import numpy as np
 
@@ -36,6 +37,9 @@ class GTPScores(object):
             (gtp, 1 - mp)
             for gtp, mp in self.gtp_max_precisions.items()
         ])
+
+    def copy(self):
+        return deepcopy(self)
 
     def copy_reset(self):
         return GTPScores(self.ground_truth_pairs)

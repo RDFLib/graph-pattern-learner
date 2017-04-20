@@ -911,7 +911,11 @@ def train(toolbox, population):
         pop[:] = offspring
         logger.debug('Population of generation %d: %r', g, pop)
 
-        toolbox.generation_step_callback(g, pop)
+        if not toolbox.generation_step_callback(g, pop):
+            logger.info(
+                'terminating learning as requested by generation_step_callback'
+            )
+            break
 
         if best_individual.fitness < hall_of_fame[0].fitness:
             best_individual = hall_of_fame[0]
@@ -1037,11 +1041,20 @@ def generation_step_callback(
     :param run: number of the current run
     :param gtp_scores: gtp_scores as of start of this run
     :param user_callback_per_generation: a user provided callback that is called
-        after each training generation. It not None called like this:
+        after each training generation. If not None called like this:
         user_callback_per_generation(run, gtp_scores, ngen, population)
+        If user_callback_per_generation returns anything else than None, it
+        overrides our return condition.
     :param ngen: the number of the current generation.
     :param population: the current population after generation ngen.
+    :return: If user_callback_per_generation returns anything but None, it is
+        used as the return value. Else, if config.QUICK_STOP and the current
+        population is good enough to cover the remaining gains so we end up
+        below the MIN_REMAINING_GAIN, we signal train to quick-stop by returning
+        False. Otherwise (the likely default), we signal train to continue
+        training by returning True.
     """
+    assert isinstance(gtp_scores, GTPScores)
     top_counter = print_population(run, ngen, population)
     top_gps = sorted(
         top_counter.keys(), key=attrgetter("fitness"), reverse=True
@@ -1053,7 +1066,24 @@ def generation_step_callback(
     )
     if user_callback_per_generation:
         # user provided callback
-        user_callback_per_generation(run, gtp_scores, ngen, population)
+        res = user_callback_per_generation(run, gtp_scores, ngen, population)
+        if res is not None:
+            return res
+    return not check_quick_stop(gtp_scores, population)
+
+
+def check_quick_stop(
+        gtp_scores, population,
+        quick_stop=config.QUICK_STOP,
+        min_remaining_gain=config.MIN_REMAINING_GAIN,
+):
+    if quick_stop:
+        pre_gtp_scores = gtp_scores.copy()
+        pre_gtp_scores.update_with_gps(population)
+        if pre_gtp_scores.remaining_gain < min_remaining_gain:
+            logger.info('quick-stop condition reached')
+            return True
+    return False
 
 
 def find_graph_patterns(

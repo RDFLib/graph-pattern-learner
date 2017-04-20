@@ -23,6 +23,7 @@ NRUNS = 64  # number of whole coverage runs of the evolutionary algorithm
 NRUNS_NO_IMPROVEMENT = 5  # stop if no more coverage patterns found in n runs
 MIN_SCORE = 2  # don't consider patterns for coverage with a score below this
 MIN_REMAINING_GAIN = 1  # stop if remaining gain is below this
+QUICK_STOP = True  # stop after 1st generation that reaches MIN_REMAINING_GAIN
 
 # graph pattern:
 MAX_PATTERN_LENGTH = 15  # max number of triples in a pattern
