@@ -152,7 +152,7 @@ logging_config = {
             'formatter': 'indenting_formatter',
             'filename': filename + '_debug' + LOG_SUFFIX,
             'maxBytes': 2 * 1024 ** 2,  # 2 MiB
-            'backupCount': 32,
+            'backupCount': 4,
             'mode': 'a',
             'encoding': 'utf-8',
         },
@@ -162,7 +162,7 @@ logging_config = {
             'formatter': 'indenting_formatter',
             'filename': filename + '_info' + LOG_SUFFIX,
             'maxBytes': 2 * 1024 ** 2,  # 2 MiB
-            'backupCount': 32,
+            'backupCount': 4,
             'mode': 'a',
             'encoding': 'utf-8',
         },
@@ -221,5 +221,10 @@ def save_error_logs():
     dir_ = os.path.join(LOG_DIR, time.strftime('error_logs_%Y-%m-%dT%H-%M-%S'))
     if not os.path.exists(dir_):
         os.mkdir(dir_)
-    for fn in glob.glob(os.path.join(LOG_DIR, '*.log*')):
-        shutil.copyfile(fn, os.path.join(dir_, os.path.basename(fn)))
+    logfiles = glob.glob(os.path.join(LOG_DIR, '*.log')) + \
+               glob.glob(os.path.join(LOG_DIR, '*.log.01.gz'))
+    for fn in logfiles:
+        target = os.path.join(dir_, os.path.basename(fn))
+        shutil.copyfile(fn, target)
+        if target.endswith('.log'):
+            _gzip_file(target)
