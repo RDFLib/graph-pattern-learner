@@ -107,7 +107,7 @@ Sidebar.updateGraphInfo = function(pattern, graphIndex) {
     for (i = 0; i < matchingPairs.length; i++) {
         tr = $("<tr>");
         tr.append("<td class=\"pair-link\">" +
-            '<a href="'+matchingPairs[i][2]+'" target="_blank">' +
+            '<a href="'+SPARQL_BASE_URI+matchingPairs[i][2]+'" target="_blank">' +
             '<span class="glyphicon glyphicon-share" aria-hidden="true">' +
             "</span></a>" +
             "</td>");
@@ -131,7 +131,7 @@ Sidebar.updateGraphInfo = function(pattern, graphIndex) {
     }
 
     $("#sparql-link")
-        .attr("href", pattern["sparql_link"]);
+        .attr("href", SPARQL_BASE_URI + pattern["sparql_link"]);
     $("#sparql-query")
         .text(pattern["sparql_query"]);
 };

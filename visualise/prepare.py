@@ -63,7 +63,8 @@ def generate_global_vars_js(src, dst):
             "var RUNS_GENS_DICT = JSON.parse('%s');\n"
             "var START_FILENAME = '%s';\n"
             "var SCRIPT_ROOT = '%s';\n"
-            % (json.dumps(runsgens), current, dst)
+            "var SPARQL_BASE_URI = '%s';\n"
+            % (json.dumps(runsgens), current, './data', SPARQL_BASE_URI)
         )
     return runsgens
 
@@ -133,7 +134,7 @@ def convert_content(fn, cont):
             (
                 source,
                 target,
-                (SPARQL_BASE_URI +
+                (
                  # quote(format_str % {'source': source, 'target': target}))
                  quote((format_str % {'source': source}).encode('utf-8'),
                        safe=""))
@@ -148,8 +149,7 @@ def convert_content(fn, cont):
             "matching_node_pairs": matching_node_pairs,
             "gtp_precisions": gp["gtp_precisions"],
             "sparql_query": gp["sparql"],
-            "sparql_link": SPARQL_BASE_URI + quote(gp["sparql"].encode('utf-8'),
-                                                   safe="")
+            "sparql_link": quote(gp["sparql"].encode('utf-8'), safe="")
         }]
     res = {
         "graphs": res,
