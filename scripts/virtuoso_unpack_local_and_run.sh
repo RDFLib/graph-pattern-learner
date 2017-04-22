@@ -64,7 +64,7 @@ echo -n "db up "
 date --rfc-3339=seconds
 
 echo "warmup db ..."
-sql <<< 'sparql select ?g (count(*) as ?c) where { graph ?g { ?s ?p ?o } } order by desc(?c) ;'
+isql <<< 'sparql select ?g (count(*) as ?c) where { graph ?g { ?s ?p ?o } } order by desc(?c) ;'
 echo "warmup db finished"
 date --rfc-3339=seconds
  
