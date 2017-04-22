@@ -191,7 +191,7 @@ def prepare_compressed_content(arg):
 def prepare_content_of_all_files(dst=OUT_DIR):
     fns = [fn_ for fn_ in sorted(glob(path.join(dst, '*.json.gz')))]
     n = len(fns)
-    p = Pool(cpu_count() // 2)  # gzip processes
+    p = Pool(cpu_count())  # gzip processes
     p.map(
         prepare_compressed_content,
         [(i, n, fn) for i, fn in enumerate(fns)],
