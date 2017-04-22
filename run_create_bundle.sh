@@ -56,11 +56,11 @@ function time_echo() {
 }
 
 if [[ ! -d venv || ! -f run.py || ! -f gp_learner.py ]] ; then
-    echo "should be invoked from gp_learner dir, trying to change into it..."
-    pwd
-    echo "$0"
-    echo "$@"
-    # env
+    echo "should be invoked from gp_learner dir, trying to change into it..." >&2
+    pwd >&2
+    echo "$0" >&2
+    echo "$@" >&2
+    # env >&2
     if [[ -n "$SLURM_SUBMIT_DIR" ]] ; then
         cd "$SLURM_SUBMIT_DIR"
     else
@@ -140,10 +140,10 @@ trap cleanup_gp_learner EXIT
 watch_resource_usage >&2 & resource_watcher_pid=$!
 
 if [[ -n $VIRTUOSO_DB_PACK ]] ; then
-    echo "disk free before virtuoso db unpacking"
+    echo "disk free before virtuoso db unpacking" >&2
     df -h >&2
     scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
-    echo "disk free after virtuoso db unpacking"
+    echo "disk free after virtuoso db unpacking" >&2
     df -h >&2
 fi
 
