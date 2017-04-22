@@ -55,13 +55,13 @@ INIT_POPPB_FV = 0.9  # probability to fix a variable in init population
 INIT_POPPB_FV_N = 5  # allow up to n instantiations for each fixed variable
 VARPAT_REINTRO = 10  # number of variable patterns re-introduced each generation
 HOFPAT_REINTRO = 10  # number of hall of fame patterns re-introduced each gen
-CXPB = 0.3  # cross-over aka mating probability
+CXPB = 0.5  # cross-over aka mating probability
 CXPB_RV = 0.5  # probability that vars in mating delta will be renamed
 CXPB_BP = 1.0  # prob to draw each of the triples that are in both parents
 CXPB_DP = 0.8  # prob to draw each of the dominant parent's only triples
 CXPB_OP = 0.2  # prob to draw each of the other parent's only triples
 CX_RETRY = 3  # how often we try to generate a living child
-MUTPB = 0.3  # mutation probability
+MUTPB = 0.5  # mutation probability
 MUTPB_IV = 0.1  # prob to introduce a variable instead of a node or edge
 MUTPB_SV = 0.1  # prob to split a variable into two
 # TODO: the more variables a pattern gets, the higher the prob to merge?
