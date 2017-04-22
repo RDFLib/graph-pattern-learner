@@ -55,7 +55,18 @@ function time_echo() {
     date --rfc-3339=seconds
 }
 
-cd "$(dirname $0)"
+if [[ ! -d venv || ! -f run.py || ! -f gp_learner.py ]] ; then
+    echo "should be invoked from gp_learner dir, trying to change into it..."
+    pwd
+    echo "$0"
+    echo "$@"
+    # env
+    if [[ -n "$SLURM_SUBMIT_DIR" ]] ; then
+        cd "$SLURM_SUBMIT_DIR"
+    else
+        cd "$(dirname $0)"
+    fi
+fi
 
 # argparsing ...
 for arg in "$@" ; do
