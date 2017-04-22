@@ -8,6 +8,7 @@ import os
 from os import path
 import re
 import shutil
+from distutils.dir_util import copy_tree
 import time
 from collections import defaultdict
 import base64
@@ -21,8 +22,10 @@ from multiprocessing import Pool, cpu_count
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-IN_DIR = path.join(path.dirname(__file__), '..', 'results')
-OUT_DIR = 'data'
+_script_dir = path.dirname(path.abspath(__file__))
+IN_DIR = path.join(_script_dir, '..', 'results')
+OUT_DIR = path.join(_script_dir, 'data')
+
 TIMESTAMP_REGEX = r'\d\d\d\d-\d\d-\d\dT\d\d-\d\d-\d\d'
 
 START_ID = "?source"
@@ -31,7 +34,7 @@ END_ID = "?target"
 SPARQL_BASE_URI = "http://dbpedia.org/sparql?qtxt="
 
 
-def get_all_runs_and_gens(src=IN_DIR):
+def get_all_runs_and_gens(src):
     """returns dict of type {run: gens, run: gens, ... }"""
     gens = defaultdict(lambda: 0)
     fns = glob(path.join(src, 'top_graph_patterns_run_*_gen_*.json.gz'))
@@ -49,11 +52,11 @@ def get_all_runs_and_gens(src=IN_DIR):
     return dict(gens)
 
 
-def generate_runs_gens_json(src=IN_DIR, dst=OUT_DIR):
+def generate_global_vars_js(src, dst):
     runsgens = get_all_runs_and_gens(src)
     max_run = max(runsgens.keys())
-    current = 'top_graph_patterns_run_%02d_gen_%02d.json.gz' %\
-              (max_run, runsgens[max_run])
+    current = 'top_graph_patterns_run_%02d_gen_%02d.json.gz' % (
+        max_run, runsgens[max_run])
     js_target = path.join(dst, "global_vars.js")
     with open(js_target, "w") as f:
         f.write(
@@ -62,24 +65,10 @@ def generate_runs_gens_json(src=IN_DIR, dst=OUT_DIR):
             "var SCRIPT_ROOT = '%s';\n"
             % (json.dumps(runsgens), current, dst)
         )
-
     return runsgens
 
 
-def get_latest_file(fn):
-    fn = fn.rsplit('.gz', 1)[0]
-    fn = fn.rsplit('.json', 1)[0]
-    fns = sorted(glob(fn + '*.json.gz'))
-    if fns:
-        fn = fns[-1]
-    else:
-        raise RuntimeError("Couldn't find fn %s" % fn)
-    with gzip.open(fn) as f:
-        r = json.load(f)
-    return fn, r
-
-
-def single_file(src, dst, fn):
+def copy_single_latest_file_without_timestamp(src, dst, fn):
     fn_base = fn.rsplit('.json.gz', 1)[0]
     fns_ts = [
         fn_ for fn_ in glob(
@@ -92,10 +81,13 @@ def single_file(src, dst, fn):
     shutil.copy(fns_ts[-1], path.join(dst, fn))
 
 
-def keep_only_latest_and_drop_timestamp(runs_gens, src=IN_DIR, dst=OUT_DIR):
+def clear_target_folder(dst):
     logging.info("Clearing folder %s" % dst)
     for fn in glob(path.join(dst, '*.json.gz')):
         os.remove(fn)
+
+
+def copy_latest_without_timestamp(runs_gens, src, dst):
     basenames = ['results.json.gz']
     for run in runs_gens:
         basenames.append('results_run_%02d.json.gz' % run)
@@ -103,7 +95,7 @@ def keep_only_latest_and_drop_timestamp(runs_gens, src=IN_DIR, dst=OUT_DIR):
             basenames.append('top_graph_patterns_run_%02d_gen_%02d.json.gz'
                              % (run, gen))
     for bn in basenames:
-        single_file(src, dst, bn)
+        copy_single_latest_file_without_timestamp(src, dst, bn)
 
 
 def convert_content(fn, cont):
@@ -207,23 +199,38 @@ def prepare_content_of_all_files(dst=OUT_DIR):
     )
 
 
+def bundle_html(dst):
+    if not dst == OUT_DIR:
+        # not in the current folder, copy over html and static files
+        pdst = path.dirname(dst)  # strip final '/data'
+        logging.info('bundling visualise html files to %s', pdst)
+        copy_tree(
+            path.join(_script_dir, 'static'),
+            path.join(pdst, 'static'))
+        shutil.copy(path.join(_script_dir, 'visualise.html'), pdst)
 
-def main(src=IN_DIR):
-    if path.abspath(os.curdir) != path.dirname(path.abspath(__file__)):
-        raise RuntimeError(
-            'Please execute from %s' % path.dirname(path.abspath(__file__))
-        )
 
+def main(src=IN_DIR, target=OUT_DIR):
     t = time.time()
+    if not target.endswith('data'):
+        # make sure we have a data subfolder in target folder
+        target = path.join(target, 'data')
+    if not path.exists(target):
+        os.makedirs(target)
+    else:
+        clear_target_folder(target)
+
     logging.info("Generating global_vars.json...")
-    runs_gens = generate_runs_gens_json(src)
+    runs_gens = generate_global_vars_js(src, target)
     logging.info(runs_gens)
 
-    logging.info("Renaming graph pattern files...")
-    keep_only_latest_and_drop_timestamp(runs_gens, src)
+    logging.info("Copying & Renaming graph pattern files...")
+    copy_latest_without_timestamp(runs_gens, src, target)
 
     logging.info("Updating json content...")
-    prepare_content_of_all_files()
+    prepare_content_of_all_files(target)
+
+    bundle_html(target)
 
     logging.info("Done with it!")
     logging.info("It took %.2f seconds" % (time.time() - t))
@@ -236,7 +243,10 @@ if __name__ == '__main__':
     parser.add_argument("-i", "--input",
                         help="the source folder to find the results in",
                         action="store", default=IN_DIR, dest="input")
+    parser.add_argument("-o", "--output",
+                        help="the target folder",
+                        action="store", default=OUT_DIR, dest="output")
 
     args = parser.parse_args()
 
-    main(args.input)
+    main(args.input, args.output)
