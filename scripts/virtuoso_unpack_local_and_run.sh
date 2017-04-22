@@ -49,9 +49,9 @@ echo -n "extracting db $pack... "
 date --rfc-3339=seconds
 #dd if="$pack" bs=2G | pv | "$PACKER" -d | tar -xvf -
 #pv -tbre -i 10 -f "$pack" > >( dd bs=2G | "$PACKER" -d | tar -xvf - ) 2> >( tr '\r' '\n' >&2 )
-pv -i 10 -f "$pack" > >( dd bs=2G | "$PACKER" -d | tar -xvf - ) 2> >( tr '\r' '\n' >&2 )
+#pv -i 10 -f "$pack" > >( dd bs=2G | "$PACKER" -d | tar -xvf - ) 2> >( tr '\r' '\n' >&2 )
 #(pv -i 10 -f "$pack" | dd bs=2G | "$PACKER" -d | tar -xvf - ) 2>&1 | tr '\r' '\n'
-#pv "$pack" | dd bs=2G | "$PACKER" -d | tar -xvf -
+dd bs=2G if="$pack" | "$PACKER" -d | tar -xvf -
 echo -n "extraction complete "
 date --rfc-3339=seconds
 #cp "$ini" ./

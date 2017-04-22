@@ -40,12 +40,13 @@ function usage() {
 
 function watch_resource_usage() {
     set +x
-    secs=${1:-120}
+    secs=${1:-60}
     while true ; do
-        h=$(hostname)
-        echo "resource usage on host: $h"
+        echo -en "\nresource usage on host: "
+        hostname
         top -n1 -b -o'%CPU' | head -n12
         top -n1 -b -o'%MEM' | tail -n+6 | head -n6
+        df -h
         sleep $secs
     done
 }
