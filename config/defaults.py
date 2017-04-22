@@ -31,7 +31,7 @@ MAX_PATTERN_VARS = 10  # max number of vars in a pattern
 MAX_PATTERN_QUERY_SIZE = 2000  # maximum select query length (chars)
 MAX_LITERAL_SIZE = 128  # maximum length of Literals in a pattern
 F_MEASURE_BETA = 1  # 0.5 for higher focus on precision than recall
-PATTERN_P_CONNECTED = True  # include patterns connected via predicate not node
+PATTERN_P_CONNECTED = False  # include patterns connected via predicate not node
 OVERFITTING_PUNISHMENT = 0.25  # multiplier for single ?source or ?target match
 
 # SPARQL query:
