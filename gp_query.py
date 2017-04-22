@@ -166,9 +166,7 @@ def _multi_query(
         _start_time = timer()
         t = None
         chunk_res = None
-        loop = 1
-        while loop:
-            loop -= 1
+        for retry in range(2, -1, -1):  # 3 attempts
             try:
                 t, q_res = _query(sparql, timeout, q, **kwds)
                 chunk_res = _chunk_res(
@@ -177,23 +175,20 @@ def _multi_query(
                 # happens if the endpoint reports a 404...
                 # as virtuoso in rare cases seems to report a 404 let's
                 # retry once after some time but then
-                if not loop:  # expected to 0 on first such exception
+                if retry:  # expected to be 0 on first such exception
                     logger.info(
                         'SPARQL endpoint reports a 404, will retry once in 10s'
                     )
                     sleep(10)
-                    loop += 2
                     continue
                 else:  # expected to be 1 on second such exception
-                    loop = 0
-                    logger.warning(
+                    logger.exception(
                         'SPARQL endpoint unreachable even after back-off '
                         'and retry\n'
                         'could not perform query:\n%s for %s\nException:',
                         q, val_chunk,
-                        exc_info=1,  # appends exception to message
                     )
-                    t, chunk_res = timer() - _start_time, {}
+                    raise
             except (SPARQLWrapperException, SAXParseException, URLError) as e:
                 if (isinstance(e, SPARQLWrapperException) and
                         re.search(
@@ -213,6 +208,23 @@ def _multi_query(
                         _res_init, _chunk_q, _chunk_res,
                         _res_update,
                         **kwds)
+                elif isinstance(e, URLError):
+                    # we're down at single query level and still encounter an
+                    # error. It is very likely that the endpoint is dead...
+                    if retry:
+                        logger.warning(
+                            'could not perform query, retry in 10s:\n'
+                            '%s for %s\nException:',
+                            q, val_chunk,
+                            exc_info=1,  # appends exception to message
+                        )
+                    else:
+                        logger.exception(
+                            'could not perform query:\n%s for %s\nException:',
+                            q, val_chunk,
+                            exc_info=1,  # appends exception to message
+                        )
+                        raise
                 else:
                     logger.warning(
                         'could not perform query:\n%s for %s\nException:',
@@ -221,13 +233,22 @@ def _multi_query(
                     )
                     t, chunk_res = timer() - _start_time, {}
             except Exception:
-                # TODO: maybe introduce a max error counter? per process?
-                logger.warning(
-                    'unhandled exception, assuming empty res for multi-query:\n'
-                    'Query:\n%s\nChunk:%r\nException:',
-                    q, val_chunk,
-                    exc_info=1,  # appends exception to message
-                )
+                if retry:
+                    logger.warning(
+                        'unhandled exception, retry in 10s:\n'
+                        'Query:\n%s\nChunk:%r\nException:',
+                        q, val_chunk,
+                        exc_info=1,  # appends exception to message
+                    )
+                    sleep(10)
+                    continue
+                else:
+                    logger.exception(
+                        'unhandled exception:\n'
+                        'Query:\n%s\nChunk:%r\nException:',
+                        q, val_chunk,
+                        exc_info=1,  # appends exception to message
+                    )
                 t, chunk_res = timer() - _start_time, {}
         _res_update(res, chunk_res, **kwds)
         total_time += t
