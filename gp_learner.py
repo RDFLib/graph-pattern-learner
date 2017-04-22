@@ -285,6 +285,11 @@ def mate_helper(
         child = canonicalize(GraphPattern(overlap_part + dom_part + other_part))
         if fit_to_live(child):
             return child
+        else:
+            # most likely not connected, try connecting by merging vars nodes
+            child = canonicalize(mutate_merge_var(child))
+            if fit_to_live(child):
+                return child
     return None
 
 
