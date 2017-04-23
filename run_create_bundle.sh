@@ -45,8 +45,7 @@ function watch_resource_usage() {
     echo "watcher pid $$, $BASHPID, ppid $PPID"
     low_load_counter=0
     while true ; do
-        echo -en "\nresource usage on host: "
-        hostname
+        echo -e "\nresource usage on host: $(hostname) working on $bundle"
         top -n1 -b -o'%CPU' | head -n12
         top -n1 -b -o'%MEM' | head -n12 | tail -n+6
         df -h
@@ -87,7 +86,7 @@ if [[ ! -d venv || ! -f run.py || ! -f gp_learner.py ]] ; then
     pwd >&2
     echo "$0" >&2
     echo "$@" >&2
-    # env >&2
+    env >&2
     if [[ -n "$SLURM_SUBMIT_DIR" ]] ; then
         cd "$SLURM_SUBMIT_DIR"
     else
@@ -137,8 +136,8 @@ done
 
 
 # slurm support (cluster)
-if [[ -n $SLURM_JOB_ID ]] ; then
-    if [[ -n $SLURM_ARRAY_TASK_ID ]] ; then
+if [[ -n "$SLURM_JOB_ID" ]] ; then
+    if [[ -n "$SLURM_ARRAY_TASK_ID" ]] ; then
         bundle="$1/${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}_${SLURM_JOB_ID}_on_${SLURM_JOB_NODELIST}"
     else
         bundle="$1/${SLURM_JOB_ID}_on_${SLURM_JOB_NODELIST}"
@@ -196,12 +195,13 @@ function virtuoso_watchdog() {
     done
 }
 
-
-if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
+if [[ -n "$SLURM_JOB_ID" ]] ; then
     echo "script pid $$, $BASHPID" >&2
     watch_resource_usage >&2 &
     resource_watcher_pid=$!
+fi
 
+if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
     echo "disk free before virtuoso db unpacking" >&2
     df -h >&2
     scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
