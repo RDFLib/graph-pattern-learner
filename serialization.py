@@ -190,6 +190,7 @@ def pause_if_signaled_by_file(waitfile=None, poll_interval=15):
         waitfile = path.join(config.RESDIR, config.PAUSE_FILE)
     n = 0
     while path.exists(waitfile):
+        logger.info("waiting %d seconds due to %s" % waitfile)
         with open(waitfile, 'a') as f:
             f.write("waiting %d s.\n" % n)
         sleep(poll_interval)
