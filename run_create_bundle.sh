@@ -28,7 +28,7 @@ PROCESSES=${SLURM_CPUS_PER_TASK}
 PROCESSES=${PROCESSES:-$SLURM_CPUS_ON_NODE}
 PROCESSES=${PROCESSES:-16}
 PROCESSES=$(( $PROCESSES * 3 / 4 ))  # leave some for virtuoso
-VIRTUOSO_MAX_MEM=42000000  # in KB, don't ask why (should leave enough room for gp learner to 64 GB)
+VIRTUOSO_MAX_MEM=45000000  # in KB, don't ask why (should leave enough room for gp learner to 64 GB)
 
 
 function usage() {
@@ -55,7 +55,7 @@ function watch_resource_usage() {
             # process locks up waiting for its answer :(
             echo "5 min load avg. is below 1..."
             low_load_counter=$(($low_load_counter + 1))
-            if [[ $low_load_counter -ge 5 ]] ; then
+            if [[ "$low_load_counter" -ge 5 ]] ; then
                 echo "killing parent's ($PPID) sub-processes"
                 pkill -P "$PPID" || true
                 sleep 15
@@ -227,7 +227,7 @@ other: $@
 time_echo "start: " | tee >> "$bundle_log"
 
 # if running on slurm cluster, write logs locally and only write back on error (see end)
-if [[ -n $SLURM_JOB_ID && -n $TMPDIR ]] ; then
+if [[ -n "$SLURM_JOB_ID" && -n "$TMPDIR" ]] ; then
     export GP_LEARNER_LOG_DIR="$TMPDIR/logs"
 else
     mkdir -p "$bundle/logs"
