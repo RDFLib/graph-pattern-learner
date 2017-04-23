@@ -26,7 +26,8 @@ set -o pipefail
 SPARQL="http://localhost:8890/sparql"
 PROCESSES=${SLURM_CPUS_PER_TASK}
 PROCESSES=${PROCESSES:-$SLURM_CPUS_ON_NODE}
-PROCESSES=${PROCESSES:-8}
+PROCESSES=${PROCESSES:-16}
+PROCESSES=$(( $PROCESSES * 3 / 4 ))  # leave some for virtuoso
 
 
 function usage() {
