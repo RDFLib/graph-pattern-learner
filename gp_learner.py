@@ -65,6 +65,7 @@ from serialization import find_last_result
 from serialization import find_run_result
 from serialization import format_graph_pattern
 from serialization import load_results
+from serialization import pause_if_signaled_by_file
 from serialization import print_graph_pattern
 from serialization import print_population
 from serialization import print_results
@@ -1069,6 +1070,7 @@ def generation_step_callback(
     save_population(
         run, ngen, top_gps, generation_gtp_scores
     )
+    pause_if_signaled_by_file()
     if user_callback_per_generation:
         # user provided callback
         res = user_callback_per_generation(run, gtp_scores, ngen, population)

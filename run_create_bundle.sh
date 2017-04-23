@@ -28,6 +28,7 @@ PROCESSES=${SLURM_CPUS_PER_TASK}
 PROCESSES=${PROCESSES:-$SLURM_CPUS_ON_NODE}
 PROCESSES=${PROCESSES:-16}
 PROCESSES=$(( $PROCESSES * 3 / 4 ))  # leave some for virtuoso
+VIRTUOSO_MAX_MEM=42000000  # in KB, don't ask why (should leave enough room for gp learner to 64 GB)
 
 
 function usage() {
@@ -163,16 +164,52 @@ function cleanup_gp_learner() {
 }
 trap cleanup_gp_learner EXIT
 
-echo "script pid $$, $BASHPID" >&2
-watch_resource_usage >&2 &
-resource_watcher_pid=$!
 
-if [[ -n $VIRTUOSO_DB_PACK ]] ; then
+function virtuoso_watchdog() {
+    # gracefully restarts virtuoso if it consumes too much memory
+    echo "watching virtuoso..."
+    while true ; do
+        if [[ -z "$bundle" ]] ; then sleep 5 ; continue ; fi
+        # get virtuoso memory
+        virtuoso_pid=$(pgrep virtuoso)
+        if [[ -n "$virtuoso_pid" ]] ; then
+            virtuoso_mem=$(ps h -o rss "$virtuoso_pid")
+            if [[ "$virtuoso_mem" -gt "$VIRTUOSO_MAX_MEM" ]] ; then
+                # we're above the maximum memory that virtuoso should use
+                echo "asking gp learner to pause..."
+                touch "$bundle/results/pause.lck"
+                while [[ -z $(cat "$bundle/results/pause.lck") ]] ; do sleep 5 ; done
+                echo "gp learner paused, stopping virtuoso..."
+                isql <<< "shutdown;"
+                while pgrep virtuoso ; do sleep 5 ; done
+                echo "virtuoso stopped, starting again..."
+                scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
+                echo "ok, virtuoso back up, removing pause.lck"
+                rm "$bundle/results/pause.lck"
+                echo "done, thanks for flying with WTF!!!"
+            fi
+        else
+            echo "virtuoso not running? trying to start it..."
+            scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
+        fi
+        sleep 30
+    done
+}
+
+
+if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
+    echo "script pid $$, $BASHPID" >&2
+    watch_resource_usage >&2 &
+    resource_watcher_pid=$!
+
     echo "disk free before virtuoso db unpacking" >&2
     df -h >&2
     scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
     echo "disk free after virtuoso db unpacking" >&2
     df -h >&2
+
+    virtuoso_watchdog >&2 &
+    virtuoso_watchdog_pid=$!
 fi
 
 

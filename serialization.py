@@ -177,6 +177,25 @@ def save_results(
     return file_path
 
 
+def pause_if_signaled_by_file(waitfile=None, poll_interval=15):
+    """Useful to be able to pause gp learner after a generation.
+    
+    Used for example to restart virtuoso to work around its memory leaks...
+    https://github.com/openlink/virtuoso-opensource/issues/645
+    
+    As soon as we're waiting, will write waiting time into the file, so external
+    processes like the run_create_bundle.sh script know.
+    """
+    if not waitfile:
+        waitfile = path.join(config.RESDIR, config.PAUSE_FILE)
+    n = 0
+    while path.exists(waitfile):
+        with open(waitfile, 'a') as f:
+            f.write("waiting %d s.\n" % n)
+        sleep(poll_interval)
+        n += poll_interval
+
+
 def find_last_result():
     # will only work the next 985 years ;-/
     result_file_names = glob(path.join(config.RESDIR, 'results_2*.json.gz'))

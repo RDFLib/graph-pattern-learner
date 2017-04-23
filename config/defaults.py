@@ -16,6 +16,7 @@ RESDIR = 'results'  # dir to put learner results
 SYMLINK_CURRENT_RES_RUN_GEN = 'top_graph_patterns_current.json.gz'  # link name
 RES_RUN_PREFIX = 'results_run'
 SYMLINK_CURRENT_RES_RUN = 'results_current.json.gz'  # link name
+PAUSE_FILE = 'pause.lck'
 
 ERROR_RETRIES = 5  # in case an unexpected error occurs retry? (real world!)
 

@@ -27,11 +27,6 @@ fi
 pack="$1"
 ini="$2"
 
-if [[ -d "$TMP_DIR" ]] ; then
-    echo "$TMP_DIR exists, aborting..." >&2
-    exit 3
-fi
-
 if [[ ! -f "$pack" ]] ; then
     echo "cannot find $pack, aborting..." >&2
     exit 3
@@ -41,6 +36,34 @@ if [[ ! -f "$ini" ]] ; then
     echo "cannot find $ini, aborting..." >&2
     exit 3
 fi
+
+function start_db() {
+    cd "$TMP_DIR"
+    echo -n "starting db ... "
+    date --rfc-3339=seconds
+    virtuoso-t +wait +configfile "$ini"
+    #virtuoso-t +foreground +configfile "$ini"
+    echo -n "db up "
+    date --rfc-3339=seconds
+
+    echo "warmup db ..."
+    isql <<< 'sparql select ?g (count(*) as ?c) where { graph ?g { ?s ?p ?o } } order by desc(?c) ;'
+    echo "warmup db finished"
+    date --rfc-3339=seconds
+
+    # setup for triple insertion
+    isql <<< 'grant SPARQL_UPDATE to "SPARQL" ;'
+
+    # echo "db log"
+    # cat virt*/db/virtuoso.log
+}
+
+if [[ -d "$TMP_DIR" ]] ; then
+    echo "$TMP_DIR exists..."
+    start_db
+    exit 0
+fi
+
 
 echo "creating db dir: $TMP_DIR..."
 mkdir -p "$TMP_DIR"
@@ -56,20 +79,4 @@ echo -n "extraction complete "
 date --rfc-3339=seconds
 #cp "$ini" ./
 
-echo -n "starting db ... "
-date --rfc-3339=seconds
-virtuoso-t +wait +configfile "$ini"
-#virtuoso-t +foreground +configfile "$ini"
-echo -n "db up "
-date --rfc-3339=seconds
-
-echo "warmup db ..."
-isql <<< 'sparql select ?g (count(*) as ?c) where { graph ?g { ?s ?p ?o } } order by desc(?c) ;'
-echo "warmup db finished"
-date --rfc-3339=seconds
- 
-# setup for triple insertion
-isql <<< 'grant SPARQL_UPDATE to "SPARQL" ;'
-
-# echo "db log"
-# cat virt*/db/virtuoso.log
+start_db
