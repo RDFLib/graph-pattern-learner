@@ -20,15 +20,14 @@ set -o pipefail
 # ./run_create_bundle.sh results/foo --NGEN=32 --POPSIZE=1000
 #
 # # to run on slurm cluster (each gt file in an array job 10 times):
-# for i in data/*.csv data/*.csv.gz ; do gt=${i%%.*} ; gt=${gt#*/} ; echo $gt ; sbatch -J "$gt" --array=1-10 -N1 -n1 --tasks-per-node=1 -c16 --mem 64G --tmp 70G -t12:00:00 -D $SCRATCH/gp_learner/logs gp_learner.sh --virtuoso_db_pack=$SCRATCH/bigfiles/dbpedia_ext_virtuoso_db.tar.lzop $SCRATCH/gp_learner/results/${gt}_$(date '+%Y-%m-%d') --NGEN=32 --POPSIZE=1000 --associations_filename=$i ; done
-
+# for i in data/*.csv* ; do gt=${i%%.*} ; gt=${gt#*/} ; echo $gt ; sbatch -J "$gt" --array=1-10 -N1 -n1 --tasks-per-node=1 -c16 --mem 60G --tmp 70G -t12:00:00 -D $SCRATCH/gp_learner/logs gp_learner.sh --virtuoso_db_pack=$SCRATCH/bigfiles/dbpedia_ext_virtuoso_db.tar.lzop $SCRATCH/gp_learner/results/${gt}_$(date '+%Y-%m-%d') --NGEN=32 --POPSIZE=1000 --associations_filename=$i ; done
 
 SPARQL="http://localhost:8890/sparql"
 PROCESSES=${SLURM_CPUS_PER_TASK}
 PROCESSES=${PROCESSES:-$SLURM_CPUS_ON_NODE}
 PROCESSES=${PROCESSES:-16}
 PROCESSES=$(( $PROCESSES * 3 / 4 ))  # leave some for virtuoso
-VIRTUOSO_MAX_MEM=45000000  # in KB, don't ask why (should leave enough room for gp learner to 64 GB)
+VIRTUOSO_MAX_MEM=40000000  # in KB, don't ask why (should leave enough room for gp learner to 60 GB)
 
 
 function usage() {
@@ -48,7 +47,7 @@ function watch_resource_usage() {
         echo -e "\nresource usage on host: $(hostname) working on $bundle"
         top -n1 -b -o'%CPU' | head -n12
         top -n1 -b -o'%MEM' | head -n12 | tail -n+6
-        df -h
+        df -h "$bundle" "$TMPDIR"
         load=$(uptime | sed -n -e 's/^.*load average: .*, \(.*\), .*$/\1/p')
         if [[ $(echo "$load < 1" | bc) -eq 1 ]] ; then
             # seem when a scoop worker is killed due to out of mem, the parent
@@ -56,12 +55,21 @@ function watch_resource_usage() {
             echo "5 min load avg. is below 1..."
             low_load_counter=$(($low_load_counter + 1))
             if [[ "$low_load_counter" -ge 5 ]] ; then
+                echo "killing main script's sub-processes"
+                pkill -P "$$" || true
+                sleep 60
+                # cleanup should stop us here
+                echo "killing main script"
+                kill "$$" || true
+                sleep 60
                 echo "killing parent's ($PPID) sub-processes"
                 pkill -P "$PPID" || true
-                sleep 15
-                # cleanup should stop us here
-                echo "killing script $PPID"
+                sleep 60
+                echo "killing parent $PPID"
                 kill "$PPID" || true
+                sleep 15
+                echo "kill -9 $$ ?!?"
+                kill -9 "$$" || true
                 sleep 15
                 echo "kill -9 $PPID ?!?"
                 kill -9 "$PPID" || true
@@ -174,7 +182,8 @@ trap cleanup_gp_learner EXIT
 
 function virtuoso_watchdog() {
     # gracefully restarts virtuoso if it consumes too much memory
-    echo "watching virtuoso..."
+    set +x
+    echo "watching virtuoso memory < $VIRTUOSO_MAX_MEM ..."
     while true ; do
         if [[ -z "$bundle" ]] ; then sleep 5 ; continue ; fi
         # get virtuoso memory
@@ -199,12 +208,12 @@ function virtuoso_watchdog() {
             echo "virtuoso not running? trying to start it..."
             scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
         fi
-        sleep 30
+        sleep 60
     done
 }
 
 if [[ -n "$SLURM_JOB_ID" ]] ; then
-    echo "script pid $$, $BASHPID" >&2
+    echo "script pid $$, ppid $PPID" >&2
     watch_resource_usage >&2 &
     resource_watcher_pid=$!
 fi
