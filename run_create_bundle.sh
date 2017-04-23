@@ -160,6 +160,14 @@ function cleanup_gp_learner() {
     if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
         isql <<< "shutdown;" || true
     fi
+
+    ls "$GP_LEARNER_LOG_DIR"/*warning* 2> /dev/null || true
+    if ls "$GP_LEARNER_LOG_DIR"/*error* 2> /dev/null ; then
+        if [[ -n "$SLURM_JOB_ID" ]] ; then
+            tar -cf "$bundle/error_logs.tar" "$GP_LEARNER_LOG_DIR"/*error*
+        fi
+        exit 2
+    fi
 }
 trap cleanup_gp_learner EXIT
 
@@ -258,14 +266,6 @@ fi
 
 echo "done, bundle size:"
 du -sh "$bundle"
-
-ls "$GP_LEARNER_LOG_DIR"/*warning* 2> /dev/null || true
-if ls "$GP_LEARNER_LOG_DIR"/*error* 2> /dev/null ; then
-    if [[ -n $SLURM_JOB_ID ]] ; then
-        tar -cf "$bundle/error_logs.tar" "$GP_LEARNER_LOG_DIR"/*error*
-    fi
-    exit 2
-fi
 
 time_echo "end: " | tee >> "$bundle_log"
 
