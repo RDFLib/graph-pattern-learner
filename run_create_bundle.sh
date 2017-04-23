@@ -50,8 +50,8 @@ function watch_resource_usage() {
         df -h "$bundle" "$TMPDIR"
         load=$(uptime | sed -n -e 's/^.*load average: .*, \(.*\), .*$/\1/p')
         if [[ $(echo "$load < 1" | bc) -eq 1 ]] ; then
-            # seem when a scoop worker is killed due to out of mem, the parent
-            # process locks up waiting for its answer :(
+            # it seems that when a scoop worker is killed due to out of mem, the
+            # parent process locks up waiting for its answer :(
             echo "5 min load avg. is below 1..."
             low_load_counter=$(($low_load_counter + 1))
             if [[ "$low_load_counter" -ge 5 ]] ; then
