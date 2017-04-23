@@ -233,8 +233,9 @@ fi
 
 mkdir -p "$bundle/results"
 
-bundle_log="$bundle/bundle_runtime_options.log"
+bundle_log="$bundle/bundle_summary.log"
 echo "Runtime options:
+version: $(git log -n1 --oneline --date=iso --pretty=format:'%h - %s (%cd)')
 processes: $PROCESSES
 sparql_endpoint: $SPARQL
 bundle: $bundle
