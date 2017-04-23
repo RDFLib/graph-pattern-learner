@@ -45,9 +45,9 @@ function watch_resource_usage() {
     low_load_counter=0
     while true ; do
         echo -e "\nresource usage on host: $(hostname) working on $bundle"
-        top -n1 -b -o'%CPU' | head -n12
-        top -n1 -b -o'%MEM' | head -n12 | tail -n+6
-        df -h "$bundle" "$TMPDIR"
+        top -n1 -b -o'%CPU' | head -n12 || true
+        top -n1 -b -o'%MEM' | head -n12 | tail -n+6 || true
+        df -h "$bundle" "$TMPDIR" 2>/dev/null || true
         load=$(uptime | sed -n -e 's/^.*load average: .*, \(.*\), .*$/\1/p')
         if [[ $(echo "$load < 1" | bc) -eq 1 ]] ; then
             # it seems that when a scoop worker is killed due to out of mem, the
