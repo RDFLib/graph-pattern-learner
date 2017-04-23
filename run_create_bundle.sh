@@ -40,12 +40,37 @@ function usage() {
 
 function watch_resource_usage() {
     set +x
+    echo "watcher pid $$, $BASHPID, ppid $PPID"
+    low_load_counter=0
     while true ; do
         echo -en "\nresource usage on host: "
         hostname
         top -n1 -b -o'%CPU' | head -n12
         top -n1 -b -o'%MEM' | head -n12 | tail -n+6
         df -h
+        load=$(uptime | sed -n -e 's/^.*load average: .*, \(.*\), .*$/\1/p')
+        if [[ $(echo "$load < 1" | bc) -eq 1 ]] ; then
+            # seem when a scoop worker is killed due to out of mem, the parent
+            # process locks up waiting for its answer :(
+            echo "5 min load avg. is below 1..."
+            low_load_counter=$(($low_load_counter + 1))
+            if [[ $low_load_counter -ge 5 ]] ; then
+                echo "killing parent's ($PPID) sub-processes"
+                pkill -P "$PPID" || true
+                sleep 15
+                # cleanup should stop us here
+                echo "killing script $PPID"
+                kill "$PPID" || true
+                sleep 15
+                echo "kill -9 $PPID ?!?"
+                kill -9 "$PPID" || true
+                sleep 15
+                # cleanup should really have stopped us long before this
+                echo "giving up, can't terminate"
+            fi
+        else
+            low_load_counter=0
+        fi
         sleep ${1:-60}
     done
 }
@@ -127,16 +152,17 @@ shift
 
 
 function cleanup_gp_learner() {
-    if [[ -n $resource_watcher_pid ]] ; then
-        kill "$resource_watcher_pid"
+    if [[ -n "$resource_watcher_pid" ]] ; then
+        kill "$resource_watcher_pid" || true
     fi
 
-    if [[ -n $VIRTUOSO_DB_PACK ]] ; then
-        isql <<< 'shutdown;'
+    if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
+        isql <<< "shutdown;" || true
     fi
 }
 trap cleanup_gp_learner EXIT
 
+echo "script pid $$, $BASHPID" >&2
 watch_resource_usage >&2 &
 resource_watcher_pid=$!
 
