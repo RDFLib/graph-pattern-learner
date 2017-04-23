@@ -138,7 +138,7 @@ done
 # slurm support (cluster)
 if [[ -n $SLURM_JOB_ID ]] ; then
     if [[ -n $SLURM_ARRAY_TASK_ID ]] ; then
-        bundle="$1/${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}_on_${SLURM_JOB_NODELIST}"
+        bundle="$1/${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}_${SLURM_JOB_ID}_on_${SLURM_JOB_NODELIST}"
     else
         bundle="$1/${SLURM_JOB_ID}_on_${SLURM_JOB_NODELIST}"
     fi
