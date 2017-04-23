@@ -25,7 +25,7 @@ set -o pipefail
 
 SPARQL="http://localhost:8890/sparql"
 PROCESSES=${SLURM_CPUS_PER_TASK}
-PROCESSES=${PROCESSES:-SLURM_CPUS_ON_NODE}
+PROCESSES=${PROCESSES:-$SLURM_CPUS_ON_NODE}
 PROCESSES=${PROCESSES:-8}
 
 
@@ -40,14 +40,13 @@ function usage() {
 
 function watch_resource_usage() {
     set +x
-    secs=${1:-60}
     while true ; do
         echo -en "\nresource usage on host: "
         hostname
         top -n1 -b -o'%CPU' | head -n12
-        top -n1 -b -o'%MEM' | tail -n+6 | head -n6
+        top -n1 -b -o'%MEM' | head -n12 | tail -n+6
         df -h
-        sleep $secs
+        sleep ${1:-60}
     done
 }
 
@@ -138,7 +137,8 @@ function cleanup_gp_learner() {
 }
 trap cleanup_gp_learner EXIT
 
-watch_resource_usage >&2 & resource_watcher_pid=$!
+watch_resource_usage >&2 &
+resource_watcher_pid=$!
 
 if [[ -n $VIRTUOSO_DB_PACK ]] ; then
     echo "disk free before virtuoso db unpacking" >&2
