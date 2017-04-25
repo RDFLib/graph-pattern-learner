@@ -218,13 +218,26 @@ if scoop.IS_RUNNING:
 
 
 def save_error_logs():
-    dir_ = os.path.join(LOG_DIR, time.strftime('error_logs_%Y-%m-%dT%H-%M-%S'))
-    if not os.path.exists(dir_):
-        os.mkdir(dir_)
-    logfiles = glob.glob(os.path.join(LOG_DIR, '*.log')) + \
-               glob.glob(os.path.join(LOG_DIR, '*.log.01.gz'))
-    for fn in logfiles:
-        target = os.path.join(dir_, os.path.basename(fn))
-        shutil.copyfile(fn, target)
-        if target.endswith('.log'):
-            _gzip_file(target)
+    for i in range(3):
+        try:
+            dir_ = os.path.join(
+                LOG_DIR,
+                time.strftime('error_logs_%Y-%m-%dT%H-%M-%S')
+            )
+            if not os.path.exists(dir_):
+                os.mkdir(dir_)
+            logfiles = glob.glob(os.path.join(LOG_DIR, '*.log')) + \
+                       glob.glob(os.path.join(LOG_DIR, '*.log.01.gz'))
+            for fn in logfiles:
+                target = os.path.join(dir_, os.path.basename(fn))
+                shutil.copyfile(fn, target)
+            for target in glob.glob(os.path.join(dir_, '*.log')):
+                _gzip_file(target)
+            break
+        except IOError:
+            logging.exception(
+                "something went wrong while saving error logs "
+                + ("retrying..." if i < 2 else "cancelling after 3 attempts")
+            )
+            if i == 2:
+                raise
