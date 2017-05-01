@@ -166,7 +166,7 @@ def _multi_query(
         _start_time = timer()
         t = None
         chunk_res = None
-        for retry in range(2, -1, -1):  # 3 attempts
+        for retry in range(2, -1, -1):  # 3 attempts: 2, 1, 0
             try:
                 t, q_res = _query(sparql, timeout, q, **kwds)
                 chunk_res = _chunk_res(
@@ -174,14 +174,14 @@ def _multi_query(
             except EndPointNotFound:
                 # happens if the endpoint reports a 404...
                 # as virtuoso in rare cases seems to report a 404 let's
-                # retry once after some time but then
-                if retry:  # expected to be 0 on first such exception
+                # retry after some time but then cancel
+                if retry:
                     logger.info(
                         'SPARQL endpoint reports a 404, will retry once in 10s'
                     )
                     sleep(10)
                     continue
-                else:  # expected to be 1 on second such exception
+                else:
                     logger.exception(
                         'SPARQL endpoint unreachable even after back-off '
                         'and retry\n'
