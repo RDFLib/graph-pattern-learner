@@ -247,7 +247,7 @@ def update_individuals(individuals, eval_results):
         ind.gtp_precisions = res[2]
 
 
-@lru_cache(maxsize=config.CACHE_SIZE)
+@lru_cache(maxsize=config.CACHE_SIZE_FIT_TO_LIVE)
 def fit_to_live(child):
     if 1 > len(child) > config.MAX_PATTERN_LENGTH:
         return False

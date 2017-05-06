@@ -49,6 +49,7 @@ NGEN = 20  # number of generations
 NGEN_NO_IMPROVEMENT = 5  # terminate if no better individual found in x gens
 POPSIZE = 200  # (target) number of individuals
 HOFSIZE = 100  # size of hall of fame
+CACHE_SIZE_FIT_TO_LIVE = 128  # cache for fit to live checks
 TOURNAMENT_SIZE = 3  # selection tournament size, causing selection pressure
 INIT_POP_LEN_ALPHA = 5  # alpha value in a length beta distribution
 INIT_POP_LEN_BETA = 30  # beta value in a length beta distribution
