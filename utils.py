@@ -9,6 +9,7 @@ from itertools import izip_longest
 from timeit import default_timer as timer
 import traceback
 
+from cachetools import LRUCache
 import numpy as np
 import rdflib
 import rdflib.exceptions
@@ -25,6 +26,7 @@ import six
 # TODO: maybe automagically get these from http://prefix.cc ?
 # TODO: make this configurable
 _nsm = NamespaceManager(rdflib.Graph())
+_nsm._NamespaceManager__cache = LRUCache(maxsize=2000)  # TODO: upstream rdflib?
 _nsm.bind('owl', namespace.OWL)
 _nsm.bind('xsd', namespace.XSD)
 _nsm.bind('foaf', namespace.FOAF)
@@ -49,27 +51,25 @@ _nsm.bind('schema', 'http://schema.org/')
 
 class URIShortener(object):
     """Wrapper around curify and decurify that remembers used prefixes."""
-    def __init__(self, nsm=None, prefixes=None):
-        if nsm is None:
-            nsm = _nsm
-        self.nsm = nsm
+    def __init__(self, prefixes=None):
         self.prefixes = {}
         self.set_prefixes(prefixes)
 
     def curify(self, identifier):
-        res, prefix, ns_n3 = curify(identifier, self.nsm, return_used=True)
+        res, prefix, ns_n3 = curify(identifier, return_used=True)
         if prefix:
             self.prefixes[prefix] = ns_n3
         return res
 
     def decurify(self, n3_str):
-        return decurify(n3_str, self.nsm)
+        return decurify(n3_str)
 
-    def set_prefixes(self, prefixes):
+    @staticmethod
+    def set_prefixes(prefixes):
         if prefixes:
             assert isinstance(prefixes, dict)
             for pr, ns_n3 in prefixes.items():
-                self.nsm.bind(pr, rdflib.util.from_n3(ns_n3), replace=True)
+                _nsm.bind(pr, rdflib.util.from_n3(ns_n3), replace=True)
 
 
 def curify(identifier, nsm=None, return_used=False):
