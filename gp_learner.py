@@ -18,6 +18,7 @@ from collections import OrderedDict
 from functools import partial
 from operator import attrgetter
 import random
+import signal
 from time import sleep
 from datetime import datetime
 
@@ -61,6 +62,7 @@ from ground_truth_tools import get_semantic_associations
 from ground_truth_tools import k_fold_cross_validation
 from ground_truth_tools import split_training_test_set
 from gtp_scores import GTPScores
+from memory_usage import log_mem_usage
 from serialization import find_last_result
 from serialization import find_run_result
 from serialization import format_graph_pattern
@@ -80,6 +82,7 @@ from utils import sample_from_list
 
 
 logger.info('init gp_learner')
+signal.signal(signal.SIGUSR1, log_mem_usage)
 
 
 class GPLearnerException(Exception):
