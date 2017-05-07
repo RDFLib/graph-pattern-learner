@@ -115,7 +115,7 @@ def f_measure(precision, recall, beta=config.F_MEASURE_BETA):
 
 
 @exception_stack_catcher
-def evaluate(sparql, timeout, gtp_scores, graph_pattern):
+def evaluate(sparql, timeout, gtp_scores, graph_pattern, run=0, gen=0):
     assert isinstance(graph_pattern, GraphPattern)
     assert isinstance(gtp_scores, GTPScores)
     ground_truth_pairs = gtp_scores.ground_truth_pairs
@@ -226,7 +226,8 @@ def evaluate(sparql, timeout, gtp_scores, graph_pattern):
     )
     logger.log(
         config.LOGLVL_EVAL,
-        'evaluated fitness for %s%s\n%s',
+        'Run %d, Generation %d: evaluated fitness for %s%s\n%s',
+        run, gen,
         graph_pattern,
         GPFitness(res).format_fitness(),
         graph_pattern.fitness.description
@@ -840,19 +841,25 @@ def mutate(
     return list(children)
 
 
-def train(toolbox, population):
+def train(toolbox, population, run):
     hall_of_fame = deap.tools.HallOfFame(config.HOFSIZE)
     # pop = toolbox.population(n=50)
     pop = population
     g = 0
-    logger.debug(
-        'Population (size: %d) of generation %d (initial population): %r',
-        g, len(pop), pop
+    logger.info(
+        'Run %d, Generation %d: %d individuals',
+        run, g, len(pop)
     )
+    logger.debug('Population: %r', pop)
 
     # Evaluate the entire population
-    eval_results = list(parallel_map(toolbox.evaluate, pop))
-    logger.debug('Evaluation results in gen %d: %r', g, eval_results)
+    _evaluate = partial(toolbox.evaluate, run=run, gen=g)
+    eval_results = list(parallel_map(_evaluate, pop))
+    logger.info(
+        'Run %d, Generation %d: evaluated %d individuals',
+        run, g, len(pop)
+    )
+    logger.debug('Evaluation results: %r', eval_results)
     update_individuals(pop, eval_results)
     hall_of_fame.update(pop)
     best_individual = hall_of_fame[0]
@@ -865,7 +872,11 @@ def train(toolbox, population):
     for g in range(1, config.NGEN + 1):
         # Select the next generation individuals
         offspring = toolbox.select(pop)
-        logger.debug('Offspring in gen %d: %r', g, offspring)
+        logger.info(
+            "Run %d, Generation %d: selected %d offspring individuals",
+            run, g, len(offspring)
+        )
+        logger.debug('Offspring: %r', offspring)
         # Clone the selected individuals
         # offspring = map(toolbox.clone, offspring)
 
@@ -877,7 +888,11 @@ def train(toolbox, population):
             tmp.append(child1)
             tmp.append(child2)
         offspring = tmp
-        logger.debug('Offspring in gen %d after mating: %r', g, offspring)
+        logger.info(
+            "Run %d, Generation %d: %d individuals after mating",
+            run, g, len(offspring)
+        )
+        logger.debug('Offspring: %r', offspring)
 
         mutants = []
         tmp = []
@@ -892,7 +907,11 @@ def train(toolbox, population):
         logger.debug('Mutation results in gen %d: %r', g, mutant_children)
         for mcs in mutant_children:
             offspring.extend(mcs)
-        logger.debug('Offspring in gen %d after mutation: %r', g, offspring)
+        logger.info(
+            "Run %d, Generation %d: %d individuals after mutation",
+            run, g, len(offspring)
+        )
+        logger.debug('Offspring: %r', offspring)
 
         # don't completely replace pop, but keep good individuals
         # will draw individuals from the first 10 % of the HOF
@@ -907,22 +926,36 @@ def train(toolbox, population):
             child for child in generate_variable_patterns(config.VARPAT_REINTRO)
             if fit_to_live(child)
         ]
-        logger.debug(
-            'Offspring in gen %d after re-adding hall-of-fame and variable '
-            'patterns: %r',
-            g, offspring
+        logger.info(
+            'Run %d, Generation %d: %d individuals after re-adding hall-of-fame'
+            ' and variable patterns',
+            run, g, len(offspring)
         )
+        logger.debug('Offspring: %r', offspring)
 
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+        logger.info(
+            "Run %d, Generation %d: %d individuals to evaluate",
+            run, g, len(invalid_ind)
+        )
         logger.debug('Evaluating individuals in gen %d: %r', g, invalid_ind)
-        eval_results = list(parallel_map(toolbox.evaluate, invalid_ind))
+        _evaluate = partial(toolbox.evaluate, run=run, gen=g)
+        eval_results = list(parallel_map(_evaluate, invalid_ind))
+        logger.info(
+            "Run %d, Generation %d: %d individuals evaluated",
+            run, g, len(eval_results)
+        )
         logger.debug('Evaluation results in gen %d: %r', g, eval_results)
         update_individuals(invalid_ind, eval_results)
         hall_of_fame.update(invalid_ind)
 
         # replace population with this generation's offspring
         pop[:] = offspring
+        logger.info(
+            "Run %d, Generation %d: %d individuals",
+            run, g, len(pop)
+        )
         logger.debug('Population of generation %d: %r', g, pop)
 
         if not toolbox.generation_step_callback(g, pop):
@@ -1005,6 +1038,7 @@ def generate_init_population(
         pb_fv=config.INIT_POPPB_FV,
         n=config.INIT_POPPB_FV_N,
 ):
+    logger.info('generating init population of seed size %d', config.POPSIZE)
     population = []
 
     # Variable patterns:
@@ -1018,6 +1052,9 @@ def generate_init_population(
             to_fix.append(vp)
         else:
             population.append(vp)
+    logger.info(
+        'initial mutate_fix_var run on %d individuals', len(to_fix)
+    )
     p_mfv = partial(mutate_fix_var, sparql, timeout, gtp_scores, sample_max_n=n)
     fixed_result_patterns_per_vp = list(parallel_map(p_mfv, to_fix))
     for fixed_result_patterns in fixed_result_patterns_per_vp:
@@ -1027,8 +1064,9 @@ def generate_init_population(
     fit_population = [gp for gp in population if fit_to_live(gp)]
 
     l = len(fit_population)
-    logger.debug(
-        'generated init population with %d individuals', l
+    logger.info(
+        'after initial mutate_fix_var run init population now has %d '
+        'individuals', l
     )
     if l < config.POPSIZE:
         logger.warning(
@@ -1133,7 +1171,7 @@ def find_graph_patterns(
     )
 
     # noinspection PyTypeChecker
-    ngen, res_population, hall_of_fame = train(toolbox, population)
+    ngen, res_population, hall_of_fame = train(toolbox, population, run)
 
     print("\n\n\nhall of fame:")
     for r in hall_of_fame[:20]:
