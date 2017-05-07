@@ -224,7 +224,8 @@ def evaluate(sparql, timeout, gtp_scores, graph_pattern):
         qtime_exceeded,
         query_time,
     )
-    logger.info(
+    logger.log(
+        config.LOGLVL_EVAL,
         'evaluated fitness for %s%s\n%s',
         graph_pattern,
         GPFitness(res).format_fitness(),
@@ -657,7 +658,8 @@ def mutate_fix_var(
     # randomly pick n of the substitutions with a prob ~ to their counts
     items, counts = zip(*substitution_counts.most_common())
     substs = sample_from_list(items, counts, sample_max_n)
-    logger.info(
+    logger.log(
+        config.LOGLVL_MUTFV,
         'fixed variable %s in %sto:\n %s\n<%d out of:\n%s\n',
         rand_var.n3(),
         child,
@@ -746,7 +748,8 @@ def mutate_simplify_pattern(gp):
 
     if len(gp) < 1:
         # for example: ?s ?v1 ?v2 .
-        logger.info(
+        logger.log(
+            config.LOGLVL_MUTSP,
             'simplification of the following pattern resulted in empty pattern,'
             ' returning original pattern:\n%s',
             orig_gp,
@@ -754,12 +757,14 @@ def mutate_simplify_pattern(gp):
         return orig_gp
 
     if orig_gp == gp:
-        logger.info(
+        logger.log(
+            config.LOGLVL_MUTSP,
             'simplification had no effect on pattern:\n%s',
             gp,
         )
     else:
-        logger.info(
+        logger.log(
+            config.LOGLVL_MUTSP,
             'successfully simplified pattern:\n%swas simplified to:\n%s',
             orig_gp,
             gp,
