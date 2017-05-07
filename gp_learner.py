@@ -45,6 +45,7 @@ import config
 from gp_query import ask_multi_query
 from gp_query import calibrate_query_timeout
 from gp_query import combined_ask_count_multi_query
+from gp_query import log_query_stats
 from gp_query import predict_query
 from gp_query import query_time_hard_exceeded
 from gp_query import query_time_soft_exceeded
@@ -1116,6 +1117,12 @@ def generation_step_callback(
     save_population(
         run, ngen, top_gps, generation_gtp_scores
     )
+
+    qs = sum(
+        [qs for qs in parallel_map(log_query_stats, [(run, ngen)]*1000) if qs]
+    )
+    logger.info('QueryStats totals:\n%s' % qs)
+
     pause_if_signaled_by_file()
     if user_callback_per_generation:
         # user provided callback

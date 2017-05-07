@@ -48,6 +48,78 @@ class QueryException(EvalException):
     pass
 
 
+class _QueryStats(object):
+    def __init__(self):
+        self.queries = 0
+        self.query_cache_hits = 0
+        self.query_cache_misses = 0
+
+        self.multi_query_count = 0
+        self.multi_query_chunks = 0
+        self.multi_query_retries = 0
+        self.multi_query_splits = 0
+
+        self.ask_multi_query_count = 0
+        self.combined_ask_count_multi_query_count = 0
+        self.variable_substitution_query_count = 0
+        self.predict_query_count = 0
+        self.count_query_count = 0
+
+        self.guard = None
+
+
+    def __str__(self):
+        above_0 = ""
+        if self.count_query_count:
+            above_0 += "\n    count_query: %d" % self.count_query_count
+        if self.predict_query_count:
+            above_0 += "\n    predict_query: %d" % self.predict_query_count
+        return (
+            "  Queries: %d total, cache: %d hits, %d misses\n"
+            "  Multi-Query: %d count, %d chunks, %d retries, %d splits\n"
+            "  High-Level query functions:\n"
+            "    ask_multi_query: %d\n"
+            "    combined_ask_count_multi_query: %d\n"
+            "    variable_substitution_query: %d%s"
+            % (
+                self.queries, self.query_cache_hits, self.query_cache_misses,
+                self.multi_query_count, self.multi_query_chunks,
+                self.multi_query_retries, self.multi_query_splits,
+                self.ask_multi_query_count,
+                self.combined_ask_count_multi_query_count,
+                self.variable_substitution_query_count,
+                above_0,
+            )
+        )
+
+    def __add__(self, other):
+        assert isinstance(other, _QueryStats)
+        res = _QueryStats()
+        for k, vs in vars(self).items():
+            if k == 'guard':
+                # keep guard as is
+                setattr(res, k, vs)
+            else:
+                # sum all else
+                setattr(res, k, vs + getattr(other, k))
+        return res
+
+    def __radd__(self, other):
+        if other == 0:
+            # allow simple sum()
+            return self
+
+
+def log_query_stats(guard):
+    if _query_stats.guard != guard:
+        _query_stats.guard = guard
+        logger.debug('QueryStats:\n%s' % _query_stats)
+        return _query_stats
+_query_stats = _QueryStats()
+
+
+
+
 def calibrate_query_timeout(
         sparql, factor=config.QUERY_TIMEOUT_FACTOR, q=None, n_queries=10):
     assert isinstance(sparql, SPARQLWrapper.SPARQLWrapper)
@@ -111,6 +183,7 @@ def ask_multi_query(
         batch_size=config.BATCH_SIZE):
     assert isinstance(source_target_pairs, Sequence)
     assert isinstance(source_target_pairs[0], tuple)
+    _query_stats.ask_multi_query_count += 1
     _vars, _values, _ret_val_mapping = _get_vars_values_mapping(
         graph_pattern, source_target_pairs)
     # see stats_for_paper
@@ -158,15 +231,19 @@ def _multi_query(
         _res_init, _chunk_q, _chunk_res,
         _res_update=lambda r, u, **___: r.update(u),
         **kwds):
+    _query_stats.multi_query_count += 1
     total_time = 0
     res = _res_init(source_target_pairs, **kwds)
     for val_chunk in chunker(_values, batch_size):
+        _query_stats.multi_query_chunks += 1
         q = _chunk_q(graph_pattern, _vars, val_chunk, **kwds)
         chunk_stps = [stp for v in val_chunk for stp in _ret_val_mapping[v]]
         _start_time = timer()
         t = None
         chunk_res = None
         for retry in range(2, -1, -1):  # 3 attempts: 2, 1, 0
+            if retry < 2:
+                _query_stats.multi_query_retries += 1
             try:
                 t, q_res = _query(sparql, timeout, q, **kwds)
                 chunk_res = _chunk_res(
@@ -201,6 +278,7 @@ def _multi_query(
                     logger.debug('retrying with half size batch: {}...'.format(
                         len(val_chunk) // 2
                     ))
+                    _query_stats.multi_query_splits += 1
                     t, chunk_res = _multi_query(
                         sparql, timeout, graph_pattern, chunk_stps,
                         len(val_chunk) // 2,
@@ -261,6 +339,7 @@ def _multi_query(
 def combined_ask_count_multi_query(
         sparql, timeout, graph_pattern, source_target_pairs,
         batch_size=config.BATCH_SIZE // 2):
+    _query_stats.combined_ask_count_multi_query_count += 1
     _vars, _values, _ret_val_mapping = _get_vars_values_mapping(
         graph_pattern, source_target_pairs)
     assert _vars == (SOURCE_VAR, TARGET_VAR), \
@@ -304,6 +383,7 @@ def count_query(sparql, timeout, graph_pattern, source=None,
                 **kwds):
     assert isinstance(graph_pattern, GraphPattern)
     assert source is None or isinstance(source, Identifier)
+    _query_stats.count_query_count += 1
 
     bind = {}
     projection = []
@@ -333,6 +413,7 @@ def predict_query(sparql, timeout, graph_pattern, source,
     """Performs a single query starting at ?SOURCE returning all ?TARGETs."""
     assert isinstance(graph_pattern, GraphPattern)
     assert isinstance(source, Identifier)
+    _query_stats.predict_query_count += 1
 
     vars_in_graph = graph_pattern.vars_in_graph
     if TARGET_VAR not in vars_in_graph:
@@ -393,6 +474,7 @@ def _query(
 
     assert isinstance(sparql, SPARQLWrapper.SPARQLWrapper)
     assert isinstance(q, six.string_types)
+    _query_stats.queries += 1
     sparql.resetQuery()
     sparql.setTimeout(timeout)
     sparql.setReturnFormat(SPARQLWrapper.JSON)
@@ -406,6 +488,7 @@ def _query(
     c = cache.get(q) if cache is not None else None
     if c is None:
         logger.debug('cache miss')
+        _query_stats.query_cache_misses += 1
         try:
             q_short = ' '.join((line.strip() for line in q.split('\n')))
             sparql.setQuery(q_short)
@@ -424,6 +507,7 @@ def _query(
             cache[q] = c
     else:
         logger.debug('cache hit')
+        _query_stats.query_cache_hits += 1
     t, res = c
     logger.debug('orig query took %.4f s, result:\n%s\n', t, res)
     return t, res
@@ -432,6 +516,7 @@ def _query(
 def variable_substitution_query(
         sparql, timeout, graph_pattern, var, source_target_pairs, limit,
         batch_size=config.BATCH_SIZE):
+    _query_stats.variable_substitution_query_count += 1
     _vars, _values, _ret_val_mapping = _get_vars_values_mapping(
         graph_pattern, source_target_pairs)
     _sel_var_and_vars = (var, _vars)
