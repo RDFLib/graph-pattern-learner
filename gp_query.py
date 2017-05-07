@@ -296,6 +296,8 @@ def _multi_query(
                             q, val_chunk,
                             exc_info=1,  # appends exception to message
                         )
+                        sleep(10)
+                        continue
                     else:
                         logger.exception(
                             'could not perform query:\n%s for %s\nException:',
@@ -327,7 +329,8 @@ def _multi_query(
                         q, val_chunk,
                         exc_info=1,  # appends exception to message
                     )
-                t, chunk_res = timer() - _start_time, {}
+                    t, chunk_res = timer() - _start_time, {}
+            break
         _res_update(res, chunk_res, **kwds)
         total_time += t
         if query_time_soft_exceeded(total_time, timeout):
