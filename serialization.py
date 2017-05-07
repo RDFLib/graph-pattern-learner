@@ -15,6 +15,7 @@ import logging
 import os
 from os import path
 import shelve
+import sys
 from time import sleep
 
 import deap
@@ -53,6 +54,8 @@ def print_graph_pattern(gp, print_matching_node_pairs=10):
 
 
 def print_population(run, ngen, population, n=10):
+    sys.stdout.flush()
+    sys.stderr.flush()
     sleep(.5)  # syncing of stderr and stdout never seems to work otherwise
     print("\n\n\nrun %d, population generation %d:\n" % (run, ngen))
     c = Counter(population)
@@ -61,6 +64,9 @@ def print_population(run, ngen, population, n=10):
         assert isinstance(gp, GraphPattern)
         print('GraphPattern %d times in population:' % c[gp])
         print_graph_pattern(gp)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sleep(.5)  # syncing of stderr and stdout never seems to work otherwise
     return c
 
 
