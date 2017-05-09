@@ -91,15 +91,19 @@ def set_symlink(file_path, symlink_name):
 
 
 def remove_old_result_files():
+    logger.info("removing old result files...")
     for fn in glob(path.join(config.RESDIR, 'top_graph_patterns_*.json.gz')):
+        logger.info("removing old %s", fn)
         os.remove(fn)
     for fn in glob(path.join(config.RESDIR,
                              config.RES_RUN_PREFIX + '_*.json.gz')):
+        logger.info("removing old %s", fn)
         os.remove(fn)
     for sln in [config.SYMLINK_CURRENT_RES_RUN_GEN,
                 config.SYMLINK_CURRENT_RES_RUN]:
         symlink_path = path.join(config.RESDIR, sln)
         if path.islink(symlink_path):
+            logger.info("removing old %s", symlink_path)
             os.remove(symlink_path)
 
 
