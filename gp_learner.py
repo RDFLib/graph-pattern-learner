@@ -1598,8 +1598,7 @@ def main(
         associations_filename=None,
         print_train_test_sets=True,
         splitting_variant='random',
-        learn_patterns=False,
-        learn_patterns_resume=False,
+        reset=False,
         print_topn_raw_patterns=0,
         print_edge_only_connected_patterns=True,
         show_precision_loss_by_query_reduction=False,
@@ -1656,10 +1655,10 @@ def main(
     sparql = SPARQLWrapper.SPARQLWrapper(sparql_endpoint)
 
 
+    if reset:
+        remove_old_result_files()
     last_res = find_last_result()
-    if learn_patterns or learn_patterns_resume or not last_res:
-        if not learn_patterns_resume:
-            remove_old_result_files()
+    if not last_res:
         res = find_graph_pattern_coverage(sparql, semantic_associations)
         result_patterns, coverage_counts, gtp_scores = res
         sys.stderr.flush()

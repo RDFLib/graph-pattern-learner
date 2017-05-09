@@ -50,18 +50,12 @@ if __name__ == "__main__":
         choices=config.SPLITTING_VARIANTS,
     )
 
-    parser_learn_group = parser.add_mutually_exclusive_group()
-    parser_learn_group.add_argument(
-        "--learn_patterns",
-        help="(re-)learn patterns for given list from SPARQL endpoint",
-        action="store_true",
-        default=False,
-    )
-
-    parser_learn_group.add_argument(
-        "--learn_patterns_resume",
-        help="if unfinished continues learning patterns from the last complete "
-             '"run" of a previous invocation',
+    parser.add_argument(
+        "--reset",
+        help="remove previous training's result files if existing (otherwise "
+             "the previous training's model will be loaded. If the training "
+             "wasn't complete, its last completed run will be loaded and "
+             "training will continue)",
         action="store_true",
         default=False,
     )

@@ -84,12 +84,26 @@ function watch_resource_usage() {
     done
 }
 
-function time_echo() {
-    echo -n "$@" ;
-    date --rfc-3339=seconds
+function file_roll() {
+    fn="$1"
+    ext="$2"
+    if [[ -e "$fn.$ext" ]] ; then
+        i=1
+        while [[ -e "$fn.$i.$ext" ]] ; do
+            ((i++))
+        done
+        fn="$fn.$i"
+    fi
+    touch "$fn.$ext"
+    echo "$fn.$ext"
 }
 
-if [[ ! -d venv || ! -f run.py || ! -f gp_learner.py ]] ; then
+function time_echo() {
+    echo -n "$@" ;
+    date --rfc-3339=seconds 2>/dev/null || date '+%F %T'
+}
+
+if [[ ! -f run.py || ! -f gp_learner.py ]] ; then
     echo "should be invoked from gp_learner dir, trying to change into it..." >&2
     pwd >&2
     echo "$0" >&2
@@ -142,22 +156,33 @@ for arg in "$@" ; do
     esac
 done
 
+if [[ $# -lt 1 ]] ; then
+    echo "no bundle dir specified?" >&2
+    usage
+fi
+
 
 # slurm support (cluster)
 if [[ -n "$SLURM_JOB_ID" ]] ; then
+    # scoop's slurm host parsing fails and we want to run on one only anyhow...
+    host="--host $(hostname)"
     if [[ -n "$SLURM_ARRAY_TASK_ID" ]] ; then
         bundle="$1/${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}_${SLURM_JOB_ID}_on_${SLURM_JOB_NODELIST}"
     else
         bundle="$1/${SLURM_JOB_ID}_on_${SLURM_JOB_NODELIST}"
     fi
 else
+    host=""
     bundle="$1"
 fi
 shift
 
 
-
-. venv/bin/activate
+if [[ -d "venv" ]] ; then
+    . venv/bin/activate
+else
+    echo "WARNING: could not find virtualenv, trying to run with current env"
+fi
 
 
 function cleanup_gp_learner() {
@@ -256,15 +281,18 @@ export PYTHONIOENCODING=utf-8
 
 
 time_echo "training start: " | tee >> "$bundle_log"
-python -m scoop --host $(hostname) -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='' "$@" 2>&1 | tee >(gzip > "$bundle"/train.log.gz)
+logfile="$(file_roll "$bundle/train.log" gz)"
+python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='' "$@" 2>&1 | tee >( gzip > "$logfile")
 time_echo "training end: " | tee >> "$bundle_log"
 
 time_echo "predict train set start: " | tee >> "$bundle_log"
-python -m scoop --host $(hostname) -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='train_set' "$@" 2>&1 | tee >(gzip > "$bundle"/predict_train.log.gz)
+logfile="$(file_roll "$bundle/predict_train.log" gz)"
+python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='train_set' "$@" 2>&1 | tee -i >(gzip > "$logfile")
 time_echo "predict train set end: " | tee >> "$bundle_log"
 
 time_echo "predict test set start: " | tee >> "$bundle_log"
-python -m scoop --host $(hostname) -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='test_set' "$@" 2>&1 | tee >(gzip > "$bundle"/predict_test.log.gz)
+logfile="$(file_roll "$bundle/predict_test.log" gz)"
+python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='test_set' "$@" 2>&1 | tee -i >(gzip > "$logfile")
 time_echo "predict test set end: " | tee >> "$bundle_log"
 
 if [[ $VISUALISE = true ]] ; then
