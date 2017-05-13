@@ -259,13 +259,17 @@ fi
 mkdir -p "$bundle/results"
 
 bundle_log="$bundle/bundle_summary.log"
+if [[ -f "$bundle_log" ]] ; then
+    echo "continuing previous training" >&2
+    echo -e "\n\n" >> "$bundle_log"
+fi
 echo "Runtime options:
 version: $(git log -n1 --oneline --date=iso --pretty=format:'%h - %s (%cd)')
 processes: $PROCESSES
 sparql_endpoint: $SPARQL
 bundle: $bundle
 other: $@
-" > "$bundle_log"
+" | tee >> "$bundle_log"
 
 time_echo "start: " | tee >> "$bundle_log"
 
