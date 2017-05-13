@@ -155,6 +155,11 @@ def save_results(
             (s.n3(), t.n3())
             for s, t in gtps
         ]
+        total = len(gtp_scores)
+        res['total'] = total
+        # if ngen is given the following are only for this ngen
+        res['coverage'] = gtp_scores.score
+        res['coverage_ratio'] = gtp_scores.score / total
 
         # this one is used by the visualisation to show accumulated precisions
         # it should only contain those of the current patterns
@@ -170,6 +175,10 @@ def save_results(
             ((s.n3(), t.n3()), p)
             for (s, t), p in sorted(overall_coverage_max_precision.items())
         ]
+        total = len(overall_gtp_scores)
+        res['total'] = total
+        res['overall_coverage'] = overall_gtp_scores.score
+        res['overall_coverage_ratio'] = overall_gtp_scores.score / total
 
     if run is not None:
         res['run_number'] = run
