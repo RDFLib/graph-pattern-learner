@@ -69,6 +69,9 @@ class GTPScores(object):
         gtps, gains = zip(*self.get_remaining_gains().items())
         return sample_from_list(gtps, gains, max_n)
 
+    def __len__(self):
+        return len(self.gtp_max_precisions)
+
     def __sub__(self, other):
         if not isinstance(other, GTPScores):
             raise TypeError('other should be GTPScore obj as well')

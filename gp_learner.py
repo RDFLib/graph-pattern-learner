@@ -1129,17 +1129,38 @@ def generation_step_callback(
         res = user_callback_per_generation(run, gtp_scores, ngen, population)
         if res is not None:
             return res
-    return not check_quick_stop(gtp_scores, population)
+
+    pre_gtp_scores = gtp_scores.copy()
+    pre_gtp_scores.update_with_gps(population)
+    rem_gain = gtp_scores.remaining_gain
+    pot_rem_gain = pre_gtp_scores.remaining_gain
+    pot_gain = rem_gain - pot_rem_gain
+    l = len(gtp_scores)
+    logger.info(
+        "Run %d:\n"
+        "  remains: %.1f / %d total = %.1f %%\n"
+        "  coverage: %.1f / %d total = %.1f %%\n"
+        "Generation %d:\n"
+        "  potential remains: %.1f (%.1f %%)\n"
+        "  potential coverage: %.1f (%.1f %%)\n"
+        "Potential gain: %.1f (%.1f %%)",
+        run,
+        rem_gain, l, rem_gain * 100 / l,
+        l - rem_gain, l, (l - rem_gain) * 100 / l,
+        ngen,
+        pot_rem_gain, pot_rem_gain * 100 / l,
+        l - pot_rem_gain, (l - pot_rem_gain) * 100 / l,
+        pot_gain, pot_gain * 100 / l,
+    )
+    return not check_quick_stop(pre_gtp_scores)
 
 
 def check_quick_stop(
-        gtp_scores, population,
+        pre_gtp_scores,
         quick_stop=config.QUICK_STOP,
         min_remaining_gain=config.MIN_REMAINING_GAIN,
 ):
     if quick_stop:
-        pre_gtp_scores = gtp_scores.copy()
-        pre_gtp_scores.update_with_gps(population)
         if pre_gtp_scores.remaining_gain < min_remaining_gain:
             logger.info('quick-stop condition reached')
             return True
