@@ -1070,17 +1070,40 @@ def generate_init_population(
         'individuals', l
     )
     if l < config.POPSIZE:
-        logger.warning(
+        lvl = logging.DEBUG
+        if l < 0.95 * config.POPSIZE:
+            lvl = logging.INFO
+        if l < 0.50 * config.POPSIZE:
+            lvl = logging.WARNING
+        sample_unfit = random.sample(
+            [gp for gp in population if gp not in fit_population],
+            min(10, len(population) - l)
+        )
+        logger.log(
+            lvl,
             'generated init population of size %d < POPSIZE = %d\n'
-            'seems the config variables (e.g., MAX_PATTERN_VARS, '
-            'MAX_PATTERN_LENGTH) are selected in a way that we are generating '
-            'many not fit_to_live patterns in generate_variable_patterns().\n'
+            'check these config variables:\n'
+            '  MAX_PATTERN_LENGTH: %d\n'
+            '  MAX_PATTERN_VARS: %d\n'
+            '  INIT_POP_LEN_ALPHA: %.3f\n'
+            '  INIT_POP_LEN_BETA: %.3f\n'
+            '  INIT_POPPB_FV: %.3f\n'
+            '  INIT_POPPB_FV_N: %.3f\n'
+            'it seems they are selected in a way that we are generating not '
+            'fit_to_live patterns in generate_variable_patterns().\n'
             'var_pats: %d\n'
-            'we had %d graph patterns before dropping these:\n%s',
+            '%d graph patterns before dropping %d like these (samples):\n%s',
             l, config.POPSIZE,
+            config.MAX_PATTERN_LENGTH,
+            config.MAX_PATTERN_VARS,
+            config.INIT_POP_LEN_ALPHA,
+            config.INIT_POP_LEN_BETA,
+            config.INIT_POPPB_FV,
+            config.INIT_POPPB_FV_N,
             len(var_pats),
             len(population),
-            ''.join(str(gp) for gp in population if gp not in fit_population)
+            len(population) - l,
+            ''.join(str(gp) for gp in sample_unfit)
         )
 
     return fit_population
