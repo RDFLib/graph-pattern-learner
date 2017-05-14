@@ -37,7 +37,9 @@ OVERFITTING_PUNISHMENT = 0.25  # multiplier for single ?source or ?target match
 
 # SPARQL query:
 SPARQL_ENDPOINT = 'http://localhost:8890/sparql'
-BATCH_SIZE = 384  # tested to rarely result in error recursions
+BATCH_SIZE = 200  # batch-size start, tested not do cause too many errors
+BATCH_SIZE_ADAPT = True  # auto-reduces BATCH_SIZE on too necessary splits
+BATCH_SIZE_MIN = 50  # min batch size, logs warnings on many remaining errors
 QUERY_TIMEOUT_FACTOR = 32  # timeout factor compared to a simplistic query
 QUERY_TIMEOUT_MIN = 2  # minimum query timeout in seconds
 CACHE_SIZE = 1000  # cache for queries and fit-to-live computations

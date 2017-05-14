@@ -13,6 +13,7 @@ import socket
 from time import sleep
 
 from cachetools import LRUCache
+from copy import deepcopy
 import six
 from rdflib.term import Identifier
 import SPARQLWrapper
@@ -32,6 +33,7 @@ from graph_pattern import TARGET_VAR
 from graph_pattern import ASK_VAR
 from graph_pattern import COUNT_VAR
 from utils import exception_stack_catcher
+from utils import kv_str
 from utils import sparql_json_result_bindings_to_rdflib
 from utils import timer
 
@@ -54,10 +56,10 @@ class _QueryStats(object):
         self.query_cache_hits = 0
         self.query_cache_misses = 0
 
-        self.multi_query_count = 0
-        self.multi_query_chunks = 0
-        self.multi_query_retries = 0
-        self.multi_query_splits = 0
+        self.multi_query_count = Counter()
+        self.multi_query_chunks = Counter()
+        self.multi_query_retries = Counter()
+        self.multi_query_splits = Counter()
 
         self.ask_multi_query_count = 0
         self.combined_ask_count_multi_query_count = 0
@@ -76,15 +78,25 @@ class _QueryStats(object):
             above_0 += "\n    predict_query: %d" % self.predict_query_count
         return (
             "  Queries: %d total, cache: %d hits, %d misses\n"
-            "  Multi-Query: %d count, %d chunks, %d retries, %d splits\n"
+            "  Multi-Query:\n"
+            "    count: %d, batch sizes: %s\n"
+            "    chunks: %d, batch sizes: %s\n"
+            "    retries: %d, batch sizes: %s\n"
+            "    splits: %d, batch sizes: %s\n"
             "  High-Level query functions:\n"
             "    ask_multi_query: %d\n"
             "    combined_ask_count_multi_query: %d\n"
             "    variable_substitution_query: %d%s"
             % (
                 self.queries, self.query_cache_hits, self.query_cache_misses,
-                self.multi_query_count, self.multi_query_chunks,
-                self.multi_query_retries, self.multi_query_splits,
+                sum(self.multi_query_count.values()),
+                kv_str(self.multi_query_count.most_common()),
+                sum(self.multi_query_chunks.values()),
+                kv_str(self.multi_query_chunks.most_common()),
+                sum(self.multi_query_retries.values()),
+                kv_str(self.multi_query_retries.most_common()),
+                sum(self.multi_query_splits.values()),
+                kv_str(self.multi_query_splits.most_common()),
                 self.ask_multi_query_count,
                 self.combined_ask_count_multi_query_count,
                 self.variable_substitution_query_count,
@@ -109,13 +121,54 @@ class _QueryStats(object):
             # allow simple sum()
             return self
 
+    def __sub__(self, other):
+        assert isinstance(other, _QueryStats)
+        res = _QueryStats()
+        for k, vs in vars(self).items():
+            if k == 'guard':
+                # keep guard as is
+                setattr(res, k, vs)
+            else:
+                # sum all else
+                setattr(res, k, vs - getattr(other, k))
+        return res
 
-def log_query_stats(guard):
+
+@exception_stack_catcher
+def query_stats(guard):
+    global _query_stats_last_adapt
     if _query_stats.guard != guard:
         _query_stats.guard = guard
+        bs = config.BATCH_SIZE
         logger.debug('QueryStats:\n%s' % _query_stats)
-        return _query_stats
+
+        if config.BATCH_SIZE_ADAPT:
+            # adapt batch size if necessary
+            diff = _query_stats - _query_stats_last_adapt
+            splits = diff.multi_query_splits[config.BATCH_SIZE]
+            queries = diff.multi_query_count[config.BATCH_SIZE]
+            if splits > .1 * queries:
+                # > 10 % of orig queries since last adapt resulted in splits
+                if config.BATCH_SIZE > config.BATCH_SIZE_MIN:
+                    config.BATCH_SIZE = max(
+                        int(config.BATCH_SIZE * .75),
+                        config.BATCH_SIZE_MIN
+                    )
+                    logger.warning(
+                        'too many splits, reduced future BATCH_SIZE to %d, '
+                        'consider restarting learning with --BATCH_SIZE=%d',
+                        config.BATCH_SIZE, config.BATCH_SIZE
+                    )
+                else:
+                    logger.warning(
+                        'too many splits even with MIN_BATCH_SIZE=%d, is '
+                        'something wrong with the endpoint or the URIs?',
+                        config.BATCH_SIZE
+                    )
+                _query_stats_last_adapt = deepcopy(_query_stats)
+        return _query_stats, bs
 _query_stats = _QueryStats()
+_query_stats_last_adapt = _QueryStats()
 
 
 
@@ -180,7 +233,7 @@ def _get_vars_values_mapping(graph_pattern, source_target_pairs):
 
 def ask_multi_query(
         sparql, timeout, graph_pattern, source_target_pairs,
-        batch_size=config.BATCH_SIZE):
+        batch_size=None):
     assert isinstance(source_target_pairs, Sequence)
     assert isinstance(source_target_pairs[0], tuple)
     _query_stats.ask_multi_query_count += 1
@@ -231,11 +284,13 @@ def _multi_query(
         _res_init, _chunk_q, _chunk_res,
         _res_update=lambda r, u, **___: r.update(u),
         **kwds):
-    _query_stats.multi_query_count += 1
+    if batch_size is None:
+        batch_size = config.BATCH_SIZE
+    _query_stats.multi_query_count[batch_size] += 1
     total_time = 0
     res = _res_init(source_target_pairs, **kwds)
     for val_chunk in chunker(_values, batch_size):
-        _query_stats.multi_query_chunks += 1
+        _query_stats.multi_query_chunks[batch_size] += 1
         q = _chunk_q(graph_pattern, _vars, val_chunk, **kwds)
         chunk_stps = [stp for v in val_chunk for stp in _ret_val_mapping[v]]
         _start_time = timer()
@@ -243,7 +298,7 @@ def _multi_query(
         chunk_res = None
         for retry in range(2, -1, -1):  # 3 attempts: 2, 1, 0
             if retry < 2:
-                _query_stats.multi_query_retries += 1
+                _query_stats.multi_query_retries[batch_size] += 1
             try:
                 t, q_res = _query(sparql, timeout, q, **kwds)
                 chunk_res = _chunk_res(
@@ -278,7 +333,7 @@ def _multi_query(
                     logger.debug('retrying with half size batch: {}...'.format(
                         len(val_chunk) // 2
                     ))
-                    _query_stats.multi_query_splits += 1
+                    _query_stats.multi_query_splits[batch_size] += 1
                     t, chunk_res = _multi_query(
                         sparql, timeout, graph_pattern, chunk_stps,
                         len(val_chunk) // 2,
@@ -341,7 +396,7 @@ def _multi_query(
 
 def combined_ask_count_multi_query(
         sparql, timeout, graph_pattern, source_target_pairs,
-        batch_size=config.BATCH_SIZE // 2):
+        batch_size=None):
     _query_stats.combined_ask_count_multi_query_count += 1
     _vars, _values, _ret_val_mapping = _get_vars_values_mapping(
         graph_pattern, source_target_pairs)
@@ -518,7 +573,7 @@ def _query(
 
 def variable_substitution_query(
         sparql, timeout, graph_pattern, var, source_target_pairs, limit,
-        batch_size=config.BATCH_SIZE):
+        batch_size=None):
     _query_stats.variable_substitution_query_count += 1
     _vars, _values, _ret_val_mapping = _get_vars_values_mapping(
         graph_pattern, source_target_pairs)

@@ -184,6 +184,17 @@ def exception_stack_catcher(func):
     return exception_stack_wrapper
 
 
+def kv_str(kvl):
+    """Turn a list of key value pairs into a nicely formatted string.
+    
+    >>> from collections import Counter
+    >>> c = Counter('aaaabbcdeeef')
+    >>> kv_str(c.most_common())
+    '[a: 4, e: 3, b: 2, c: 1, d: 1, f: 1]'
+    """
+    return '[%s]' % ', '.join('%s: %s' % (k, v) for k, v in kvl)
+
+
 def log_wrapped_exception(logger, e):
     # see exception_stack_catcher decorator
     if hasattr(e, '_exc_fmt'):
