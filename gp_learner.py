@@ -31,6 +31,7 @@ from rdflib import BNode
 from rdflib import Literal
 from rdflib import URIRef
 from rdflib import Variable
+from rdflib import XSD
 import SPARQLWrapper
 from scoop.futures import map as parallel_map
 import six
@@ -549,6 +550,8 @@ def mutate_fix_var_filter(item_counts):
     - too long literals
     - URIs with encoding errors (real world!)
     - BNode results (they will not be fixed but stay SPARQL vars)
+    - NaN or INF literals (Virtuoso bug
+        https://github.com/openlink/virtuoso-opensource/issues/649 )
     """
     assert isinstance(item_counts, Counter)
     for i in list(item_counts.keys()):
@@ -560,6 +563,10 @@ def mutate_fix_var_filter(item_counts):
                     '%s...',
                     len(i_n3), config.MAX_LITERAL_SIZE, i_n3[:128]
                 )
+                del item_counts[i]
+            if i.datatype in (XSD['float'], XSD['double']) \
+                    and six.text_type(i).lower() in ('nan', 'inf'):
+                logger.debug('excluding %s due to Virtuoso Bug', i_n3)
                 del item_counts[i]
         if isinstance(i, URIRef):
             # noinspection PyBroadException
