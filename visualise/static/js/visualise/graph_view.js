@@ -314,7 +314,7 @@ GraphView.zoomed = function() {
     GraphView.container.attr("transform", "translate(" + translate + ")scale(" +
         scale + ")");
 
-    var textScale = scaleText ? scale : 1;
+    var textScale = scaleText ? 1 : scale;
     GraphView.joins.text.selectAll("text").style("font-size", (FONTSIZE / textScale) + "px");
     GraphView.joins.text.selectAll(".shadow").style("stroke-width",
         SHADOWSIZE / textScale + "px");
@@ -324,7 +324,7 @@ GraphView.zoomed = function() {
     d3.selectAll(".link-label-text").style("font-size",
         FONTSIZE / textScale + "px");
 
-    var markerScale = scaleMarker ? scale : 1;
+    var markerScale = scaleMarker ? 1 : scale;
     d3.select("#marker").attr("markerWidth", 5 / markerScale);
     d3.select("#marker").attr("markerHeight", 5 / markerScale);
     d3.select("#marker").attr("refX", 13.77777778 * markerScale + 6.222222222);
