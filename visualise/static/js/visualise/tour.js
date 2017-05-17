@@ -1,4 +1,5 @@
 function startTour(force_start){
+    $("#graph-nav > a").click();
     var upcoming_step = null; // hack to know upcoming step in onShow
     function next(t) {
         // console.log("next, cur: " + t.getCurrentStep());

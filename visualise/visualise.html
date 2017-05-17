@@ -19,12 +19,23 @@
     </script>
 
     <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
     <script>
       if (!$.fn.modal) {
        console.warn("bootstrapcdn not reachable");
        document.write('<script src="static/libs/bootstrap-3.3.5/js/bootstrap.min.js">\x3C/script>');
        document.write('<link rel="stylesheet" href="static/libs/bootstrap-3.3.5/css/bootstrap.min.css">');
+      }
+    </script>
+
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-switch/3.3.4/js/bootstrap-switch.min.js"></script>
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/bootstrap-switch/3.3.4/css/bootstrap3/bootstrap-switch.min.css">
+    <script>
+      if (!$.fn.bootstrapSwitch) {
+       console.warn("cloudflare not reachable");
+       document.write('<script src="static/libs/bootstrap-switch-3.3.4/bootstrap-switch.min.js">\x3C/script>');
+       document.write('<link rel="static/libs/bootstrap-switch-3.3.4/bootstrap-switch.min.css">');
       }
     </script>
 
@@ -91,6 +102,8 @@
               </li>
             </ul>
             <div id="searchbar-container">
+                <span id="settings-icon" class="glyphicon glyphicon-cog"
+                      data-toggle="modal" data-target="#settings-modal"></span>
                 <span id="help-icon" class="glyphicon glyphicon-question-sign"></span>
                 <input id="searchbar" type="text" class="search-query"
                        placeholder="Search (Alt+Shift+F)" size="30">
@@ -260,6 +273,34 @@
         </div>
       </div>
     </div>
+
+    <!-- settings modal -->
+    <div class="modal fade" tabindex="-1" role="dialog" id="settings-modal">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title">Settings</h4>
+          </div>
+          <div class="modal-body">
+            <h3>Graph view</h3>
+            <div class="form-group">
+              <label for="settings-scale-text">Scale Labels</label><br />
+              <input type="checkbox" class="switchify" id="settings-scale-text">
+            </div>
+
+            <div class="form-group">
+              <label for="settings-scale-arrow-tips">Scale Arrow Tips</label><br />
+              <input type="checkbox" class="switchify" id="settings-scale-arrow-tips" checked>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-load-overlay">
       <div class="modal-load-center">
         <div class="ball"></div>
