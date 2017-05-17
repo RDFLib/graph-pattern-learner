@@ -75,9 +75,15 @@ input[type=number] {
     color: #959595;
 }
 
+#searchbar-container .glyphicon {
+    cursor: pointer;
+    margin-right: 10px;
+}
+
 .tour-backdrop {
     opacity: 0.5;
 }
+
 
 /*******************\
 **  graph styling  **

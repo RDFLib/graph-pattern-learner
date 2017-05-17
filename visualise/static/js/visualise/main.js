@@ -188,6 +188,9 @@ Main.setBindings = function() {
     $("#help-icon").click(function() {startTour(true)});
     $(function() {startTour(false)});
 
+    $("input.switchify[type='checkbox']").bootstrapSwitch();
+
+
     $("#matrix").click(function(e) {
         if (!$(e.target).hasClass("matrix-div")){
             MatrixView.Filter.clearPatterns();
