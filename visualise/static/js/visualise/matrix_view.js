@@ -41,7 +41,7 @@ MatrixView.update = function(coverageMaxPrecision, graphPatterns, graphIndex) {
     function nodesToId(nodes) {
         var res = [];
         for (var i=0; i < nodes.length; i++) {
-            res.push(btoa(nodes[i]));
+            res.push(btoa(encodeURIComponent(nodes[i])));
         }
         return res.join("#");
     }
