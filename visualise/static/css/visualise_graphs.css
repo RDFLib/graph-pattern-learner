@@ -207,6 +207,11 @@ text.shadow {
     left: 40px;
 }
 
+#main-content .btn-toolbar .credits {
+    color: #333;
+    background-color: #fff;
+}
+
 .arrow-down,
 .collapse-heading > a[aria-expanded="true"] > .drop-arrow{
     width: 0;
