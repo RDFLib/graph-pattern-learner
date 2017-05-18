@@ -193,6 +193,7 @@ def save_results(
         pass
     with gzip.open(file_path, 'w') as f:
         json.dump(res, f, indent=2)
+    logger.info('saved results to %s', file_path)
     return file_path
 
 
