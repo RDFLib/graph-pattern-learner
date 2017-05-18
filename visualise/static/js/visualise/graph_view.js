@@ -96,13 +96,13 @@ GraphView.start = function() {
         .attr("startOffset", "50%")
         .attr("text-anchor", "middle")
         .style("stroke", "#fff")
-        .style("stroke-opacity",0.8)
+        .style("stroke-opacity", 0.8)
         .style("font-family", "Arial")
         .style("stroke-width", SHADOWSIZE)
         .style("font-size", FONTSIZE)
         .append("svg:tspan")
         .attr("class", "link-label-shadow")
-        .attr("dy", "-1");
+        .attr("dy", "-2");
     GraphView.joins.linkLabelsShadow
         .select('.link-label-shadow-path')
         .attr("xlink:href", function(d) {
@@ -126,7 +126,7 @@ GraphView.start = function() {
         .style("font-size", FONTSIZE)
         .append("svg:tspan")
         .attr("class", "link-label-text")
-        .attr("dy", "-1");
+        .attr("dy", "-2");
     GraphView.joins.linkLabelsText
         .select('.link-label-text-path')
         .attr("xlink:href", function(d) {
