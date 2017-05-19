@@ -22,8 +22,8 @@ ERROR_RETRIES = 5  # in case an unexpected error occurs retry? (real world!)
 
 NRUNS = 64  # number of whole coverage runs of the evolutionary algorithm
 NRUNS_NO_IMPROVEMENT = 5  # stop if no more coverage patterns found in n runs
-MIN_SCORE = 2  # don't consider patterns for coverage with a score below this
-MIN_REMAINING_GAIN = 1  # stop if remaining gain is below this
+MIN_SCORE = 2.  # don't consider patterns for coverage with a score below this
+MIN_REMAINING_GAIN = 1.  # stop if remaining gain is below this
 QUICK_STOP = True  # stop after 1st generation that reaches MIN_REMAINING_GAIN
 
 # graph pattern:
@@ -31,7 +31,7 @@ MAX_PATTERN_LENGTH = 15  # max number of triples in a pattern
 MAX_PATTERN_VARS = 10  # max number of vars in a pattern
 MAX_PATTERN_QUERY_SIZE = 2000  # maximum select query length (chars)
 MAX_LITERAL_SIZE = 128  # maximum length of Literals in a pattern
-F_MEASURE_BETA = 1  # 0.5 for higher focus on precision than recall
+F_MEASURE_BETA = 1.  # 0.5 for higher focus on precision than recall
 PATTERN_P_CONNECTED = False  # include patterns connected via predicate not node
 OVERFITTING_PUNISHMENT = 0.25  # multiplier for single ?source or ?target match
 
@@ -41,7 +41,7 @@ BATCH_SIZE = 200  # batch-size start, tested not do cause too many errors
 BATCH_SIZE_ADAPT = True  # auto-reduces BATCH_SIZE on too necessary splits
 BATCH_SIZE_MIN = 50  # min batch size, logs warnings on many remaining errors
 QUERY_TIMEOUT_FACTOR = 32  # timeout factor compared to a simplistic query
-QUERY_TIMEOUT_MIN = 2  # minimum query timeout in seconds
+QUERY_TIMEOUT_MIN = 2.  # minimum query timeout in seconds
 CACHE_SIZE = 1000  # cache for queries and fit-to-live computations
 PREDICTION_RESULT_LIMIT = 1000  # max results per individual GP queries
 PREDICTION_IN_PARALLEL = True  # run the queries for a prediction in parallel?
@@ -53,8 +53,8 @@ POPSIZE = 200  # (target) number of individuals
 HOFSIZE = 100  # size of hall of fame
 CACHE_SIZE_FIT_TO_LIVE = 128  # cache for fit to live checks
 TOURNAMENT_SIZE = 3  # selection tournament size, causing selection pressure
-INIT_POP_LEN_ALPHA = 5  # alpha value in a length beta distribution
-INIT_POP_LEN_BETA = 30  # beta value in a length beta distribution
+INIT_POP_LEN_ALPHA = 5.  # alpha value in a length beta distribution
+INIT_POP_LEN_BETA = 30.  # beta value in a length beta distribution
 INIT_POPPB_FV = 0.9  # probability to fix a variable in init population
 INIT_POPPB_FV_N = 5  # allow up to n instantiations for each fixed variable
 VARPAT_REINTRO = 10  # number of variable patterns re-introduced each generation
