@@ -1668,7 +1668,8 @@ def main(
     print('encoding check: äöüß🎅')  # printing utf-8 byte string
     print(u'encoding check: äöüß\U0001F385')  # printing unicode string
 
-    main_start = datetime.utcnow()
+    timer_start = datetime.utcnow()
+    main_start = timer_start
 
     # get list of semantic association pairs and split in train and test sets
     semantic_associations = get_semantic_associations(associations_filename)
@@ -1740,6 +1741,9 @@ def main(
     sys.stdout.flush()
     sys.stderr.flush()
 
+    timer_stop = datetime.utcnow()
+    logging.info('Training/loading model took: %s', timer_stop - timer_start)
+    timer_start = timer_stop
 
     if show_precision_loss_by_query_reduction:
         # amount of requests one wants to make for a prediction
@@ -1788,6 +1792,9 @@ def main(
         sys.stdout.flush()
         sys.stderr.flush()
 
+    timer_stop = datetime.utcnow()
+    logging.info('Query reduction took: %s', timer_stop - timer_start)
+    timer_start = timer_stop
 
     if predict and predict != 'manual':
         assert predict in ('train_set', 'test_set')
@@ -1798,9 +1805,10 @@ def main(
         sys.stdout.flush()
         sys.stderr.flush()
 
-
-    main_end = datetime.utcnow()
-    logging.info('Overall execution took: %s', main_end - main_start)
+        timer_stop = datetime.utcnow()
+        logging.info('Batch prediction of %s took: %s',
+                     predict, timer_stop - timer_start)
+        timer_start = timer_stop
 
     if predict == 'manual':
         timeout = calibrate_query_timeout(sparql)
