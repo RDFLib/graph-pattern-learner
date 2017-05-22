@@ -1475,7 +1475,7 @@ def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
     :param gps: A list of evaluated GraphPattern objects (fitness is used).
     :param source: source node
     :param parallel: execute prediction queries in parallel?
-    :return: A list of pairs [(target_candidates, gp)]
+    :return: A list of pairs [(gp, target_candidates)]
     """
     if parallel is None:
         parallel = config.PREDICTION_IN_PARALLEL
@@ -1487,7 +1487,7 @@ def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
     )
     map_ = parallel_map if parallel else map
     results = map_(pq, gps)
-    results = zip([res for _, res in results], gps)
+    results = zip(gps, [res for _, res in results])  # strip away timings
     return results
 
 
@@ -1528,7 +1528,7 @@ def fuse_prediction_results(predict_query_results, fusion_methods=None):
 
     # TODO: add cut-off values for methods (will have different recalls then)
 
-    for res, gp in predict_query_results:
+    for gp, res in predict_query_results:
         score = gp.fitness.values.score
         fm = gp.fitness.values.f_measure
         gp_precision = 1
