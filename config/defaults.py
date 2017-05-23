@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 from os import path
+from os import getenv
 
 # WARNING: file is parsed from helpers.py and imported in __init__
 # All uppercase variable assignments are config options that become configurable
@@ -37,7 +38,7 @@ PATTERN_P_CONNECTED = False  # include patterns connected via predicate not node
 OVERFITTING_PUNISHMENT = 0.25  # multiplier for single ?source or ?target match
 
 # SPARQL query:
-SPARQL_ENDPOINT = 'http://localhost:8890/sparql'
+SPARQL_ENDPOINT = getenv('SPARQL_ENDPOINT', 'http://localhost:8890/sparql')
 BATCH_SIZE = 200  # batch-size start, tested not do cause too many errors
 BATCH_SIZE_ADAPT = True  # auto-reduces BATCH_SIZE on too necessary splits
 BATCH_SIZE_MIN = 50  # min batch size, logs warnings on many remaining errors
