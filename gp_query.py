@@ -4,27 +4,26 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from collections import defaultdict
-from collections import Counter
-from collections import Sequence
-from datetime import datetime
-from datetime import timedelta
-from functools import wraps
 import logging
 import re
 import socket
 import sys
-from time import sleep
-
-from cachetools import LRUCache
+from collections import Counter
+from collections import Sequence
+from collections import defaultdict
 from copy import deepcopy
-import six
-from rdflib.term import Identifier
-import SPARQLWrapper
-from SPARQLWrapper.SPARQLExceptions import EndPointNotFound
-from SPARQLWrapper.SPARQLExceptions import QueryBadFormed
-from SPARQLWrapper.SPARQLExceptions import SPARQLWrapperException
+from datetime import datetime
+from datetime import timedelta
+from functools import wraps
+from time import sleep
 from xml.sax.expatreader import SAXParseException
+
+import SPARQLWrapper
+import six
+from SPARQLWrapper.SPARQLExceptions import EndPointNotFound
+from SPARQLWrapper.SPARQLExceptions import SPARQLWrapperException
+from cachetools import LRUCache
+from rdflib.term import Identifier
 # noinspection PyUnresolvedReferences
 from six.moves.urllib.error import URLError
 from splendid import chunker
@@ -32,29 +31,20 @@ from splendid import get_path
 from splendid import time_func
 
 import config
+from exception import IncompleteQueryException
+from exception import MultiQueryException
+from exception import MultiQueryClosedException
+from graph_pattern import ASK_VAR
+from graph_pattern import COUNT_VAR
 from graph_pattern import GraphPattern
 from graph_pattern import SOURCE_VAR
 from graph_pattern import TARGET_VAR
-from graph_pattern import ASK_VAR
-from graph_pattern import COUNT_VAR
 from utils import exception_stack_catcher
 from utils import kv_str
 from utils import sparql_json_result_bindings_to_rdflib
 from utils import timer
 
 logger = logging.getLogger(__name__)
-
-
-class QueryException(Exception):
-    pass
-
-
-class IncompleteQueryException(Exception):
-    pass
-
-
-class MultiQueryException(Exception):
-    pass
 
 
 class _QueryStats(object):
@@ -307,7 +297,7 @@ def _exception_closes_worker_guard(func):
                     '_multi_query temporarily closed for worker due to '
                     'previous exception'
                 )
-                raise MultiQueryException('closed for worker')
+                raise MultiQueryClosedException('closed for worker')
             else:
                 closed.pop()
         try:

@@ -43,6 +43,7 @@ import logging_config
 from cluster import expected_precision_loss_by_query_reduction
 from cluster import select_best_variant
 import config
+from exception import GPLearnerAbortException
 from fusion import fuse_prediction_results
 from gp_query import ask_multi_query
 from gp_query import calibrate_query_timeout
@@ -87,27 +88,6 @@ from utils import sample_from_list
 
 logger.info('init gp_learner')
 signal.signal(signal.SIGUSR1, log_mem_usage)
-
-
-class GPLearnerException(Exception):
-    pass
-
-
-class GPLearnerAbortException(GPLearnerException):
-    """Exception base class to be raised to abort whole GP Learner."""
-    pass
-
-
-class GPLearnerTestPatternFoundException(GPLearnerAbortException):
-    """Exception to be thrown when a test pattern is found.
-
-    This exception is used in eval mode to enable early termination as soon as
-    a test pattern (to be searched) ends up in the results of one generation.
-    Early termination here allows not wasting additional time for the full
-    run to complete. It skips out of the code immediately, re-raising the
-    exception for external (eval) handling.
-    """
-    pass
 
 
 def f_measure(precision, recall, beta=config.F_MEASURE_BETA):
