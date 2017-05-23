@@ -169,10 +169,10 @@ def exception_stack_catcher(func):
                         str(e)
                     except UnicodeEncodeError:
                         scoop.logger.warning(
-                            're-packing exception for scoop, see'
+                            're-packing exception for scoop, see '
                             'https://github.com/soravux/scoop/pull/24'
                         )
-                        e_msg = repr(e.message)
+                        e_msg = repr(e)
                         six.reraise(type(e), e_msg, exc_info[2])
                     else:
                         raise
@@ -180,6 +180,7 @@ def exception_stack_catcher(func):
                     # append the stack as field to the re-raised exception
                     err._exc_fmt = 'error in worker:\n%s' % (
                         ''.join(traceback.format_exception(*exc_info)))
+                    six.reraise(type(err), err, exc_info[2])
             raise
     return exception_stack_wrapper
 

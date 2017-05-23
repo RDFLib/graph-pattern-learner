@@ -1447,7 +1447,7 @@ def find_graph_pattern_coverage(
             raise
         except Exception as e:
             error_count += 1
-            logger.error('uncaught exception in run %d' % run)
+            logger.error('uncaught exception in run %d', run)
             log_wrapped_exception(logger, e)
             if error_count > error_retries:
                 logger.error(
@@ -1456,9 +1456,13 @@ def find_graph_pattern_coverage(
                 )
                 raise
             else:
-                logger.error('will retry in 15s despite error...')
+                logger.error(
+                    'this was uncaught exception number %d, will retry in %ds '
+                    'despite error...',
+                    error_count, config.ERROR_WAIT
+                )
                 logging_config.save_error_logs()
-                sleep(15)
+                sleep(config.ERROR_WAIT)
 
     # sort patterns by fitness, run and then pattern
     patterns = sorted(

@@ -7,9 +7,13 @@ from __future__ import print_function
 from collections import defaultdict
 from collections import Counter
 from collections import Sequence
+from datetime import datetime
+from datetime import timedelta
+from functools import wraps
 import logging
 import re
 import socket
+import sys
 from time import sleep
 
 from cachetools import LRUCache
@@ -18,6 +22,7 @@ import six
 from rdflib.term import Identifier
 import SPARQLWrapper
 from SPARQLWrapper.SPARQLExceptions import EndPointNotFound
+from SPARQLWrapper.SPARQLExceptions import QueryBadFormed
 from SPARQLWrapper.SPARQLExceptions import SPARQLWrapperException
 from xml.sax.expatreader import SAXParseException
 # noinspection PyUnresolvedReferences
@@ -40,13 +45,15 @@ from utils import timer
 logger = logging.getLogger(__name__)
 
 
-
-
-class EvalException(Exception):
+class QueryException(Exception):
     pass
 
 
-class QueryException(EvalException):
+class IncompleteQueryException(Exception):
+    pass
+
+
+class MultiQueryException(Exception):
     pass
 
 
@@ -221,7 +228,7 @@ def _get_vars_values_mapping(graph_pattern, source_target_pairs):
             _values = [(t,) for t in sorted(set(targets))]
             _val_idx = 1
         else:
-            raise QueryException(
+            raise IncompleteQueryException(
                 "tried to run a query on a graph pattern without "
                 "%s and %s vars:\n%s" % (SOURCE_VAR, TARGET_VAR, graph_pattern)
             )
@@ -276,7 +283,42 @@ def _ask_chunk_result_extractor(q_res, _vars, _ret_val_mapping):
     return chunk_res
 
 
-# noinspection PyBroadException
+def _exception_closes_worker_guard(func):
+    """Temporarily closes _multi_query for current worker.
+
+    This is a workaround for SCOOP's map otherwise having already dispatched
+    further work to this worker, despite an exception of a previous _multi_query
+    not being handled in origin yet.
+
+    An exception being raised out of _multi_query would normally cause origin to
+    back-off for config.ERROR_WAIT and retry. This "quick fails" all remaining
+    work in the time frame.
+    """
+    closed = []
+    wait = timedelta(
+        seconds=config.ERROR_WAIT * .75  # rather don't close too long
+    )
+
+    @wraps(func)
+    def _multi_query_wrapper(*args, **kwds):
+        if closed:
+            if datetime.utcnow() - closed[0] < wait:
+                logger.warning(
+                    '_multi_query temporarily closed for worker due to '
+                    'previous exception'
+                )
+                raise MultiQueryException('closed for worker')
+            else:
+                closed.pop()
+        try:
+            return func(*args, **kwds)
+        except:
+            closed.append(datetime.utcnow())
+            raise
+    return _multi_query_wrapper
+
+
+@_exception_closes_worker_guard
 def _multi_query(
         sparql, timeout, graph_pattern, source_target_pairs,
         batch_size,
@@ -303,15 +345,16 @@ def _multi_query(
                 t, q_res = _query(sparql, timeout, q, **kwds)
                 chunk_res = _chunk_res(
                     q_res, _vars, _ret_val_mapping, **kwds)
-            except EndPointNotFound:
+            except EndPointNotFound as e:
                 # happens if the endpoint reports a 404...
                 # as virtuoso in rare cases seems to report a 404 let's
                 # retry after some time but then cancel
                 if retry:
                     logger.info(
-                        'SPARQL endpoint reports a 404, will retry once in 10s'
+                        'SPARQL endpoint reports a 404, will retry in %ds',
+                        config.ERROR_WAIT
                     )
-                    sleep(10)
+                    sleep(config.ERROR_WAIT)
                     continue
                 else:
                     logger.exception(
@@ -320,7 +363,7 @@ def _multi_query(
                         'could not perform query:\n%s for %s\nException:',
                         q, val_chunk,
                     )
-                    raise
+                    six.reraise(MultiQueryException, e, sys.exc_info()[2])
             except (SPARQLWrapperException, SAXParseException, URLError) as e:
                 if (isinstance(e, SPARQLWrapperException) and
                         re.search(
@@ -346,45 +389,47 @@ def _multi_query(
                     # error. It is very likely that the endpoint is dead...
                     if retry:
                         logger.warning(
-                            'could not perform query, retry in 10s:\n'
+                            'URLError, seems we cannot reach SPARQL endpoint, '
+                            'retry in %ds. Tried to perform query:\n'
                             '%s for %s\nException:',
-                            q, val_chunk,
+                            config.ERROR_WAIT, q, val_chunk,
                             exc_info=1,  # appends exception to message
                         )
-                        sleep(10)
+                        sleep(config.ERROR_WAIT)
                         continue
                     else:
                         logger.exception(
-                            'could not perform query:\n%s for %s\nException:',
+                            'URLError, seems we cannot reach SPARQL endpoint, '
+                            'giving up after 3 retries. Tried to perform query:'
+                            '\n%s for %s\nException:',
                             q, val_chunk,
-                            exc_info=1,  # appends exception to message
                         )
-                        raise
+                        six.reraise(MultiQueryException, e, sys.exc_info()[2])
                 else:
                     logger.warning(
-                        'could not perform query:\n%s for %s\nException:',
+                        'could not perform query, replacing with 0 result:\n'
+                        '%s for %s\nException:',
                         q, val_chunk,
                         exc_info=1,  # appends exception to message
                     )
                     t, chunk_res = timer() - _start_time, {}
-            except Exception:
+            except Exception as e:
                 if retry:
                     logger.warning(
-                        'unhandled exception, retry in 10s:\n'
+                        'unhandled exception, retry in %ds:\n'
                         'Query:\n%s\nChunk:%r\nException:',
-                        q, val_chunk,
+                        config.ERROR_WAIT, q, val_chunk,
                         exc_info=1,  # appends exception to message
                     )
-                    sleep(10)
+                    sleep(config.ERROR_WAIT)
                     continue
                 else:
                     logger.exception(
-                        'unhandled exception:\n'
+                        'unhandled exception, giving up after 3 retries:\n'
                         'Query:\n%s\nChunk:%r\nException:',
                         q, val_chunk,
-                        exc_info=1,  # appends exception to message
                     )
-                    t, chunk_res = timer() - _start_time, {}
+                    six.reraise(MultiQueryException, e, sys.exc_info()[2])
             break
         _res_update(res, chunk_res, **kwds)
         total_time += t

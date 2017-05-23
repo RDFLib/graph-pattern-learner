@@ -19,6 +19,7 @@ SYMLINK_CURRENT_RES_RUN = 'results_current.json.gz'  # link name
 PAUSE_FILE = 'pause.lck'
 
 ERROR_RETRIES = 5  # in case an unexpected error occurs retry? (real world!)
+ERROR_WAIT = 30  # seconds to wait in case of error before retry
 
 NRUNS = 64  # number of whole coverage runs of the evolutionary algorithm
 NRUNS_NO_IMPROVEMENT = 5  # stop if no more coverage patterns found in n runs
