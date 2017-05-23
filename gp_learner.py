@@ -1458,9 +1458,9 @@ def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
     :param sparql: SPARQLWrapper endpoint.
     :param timeout: Timeout in seconds for each individual query (gp).
     :param gps: A list of evaluated GraphPattern objects (fitness is used).
-    :param source: source node
+    :param source: source node for which to predict target candidates.
     :param parallel: execute prediction queries in parallel?
-    :return: A list of pairs [(gp, target_candidates)]
+    :return: A list of target_candidate lists for each gp.
     """
     if parallel is None:
         parallel = config.PREDICTION_IN_PARALLEL
@@ -1472,16 +1472,18 @@ def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
     )
     map_ = parallel_map if parallel else map
     results = map_(pq, gps)
-    results = zip(gps, [res for _, res in results])  # strip away timings
-    return results
+    # drop timings:
+    res = [target_candidates for _, target_candidates in results]
+    return res
 
 
-def predict_target(
+def predict_fused_targets(
         sparql, timeout, gps, source,
         parallel=None, fusion_methods=None
 ):
     """Predict candidates and fuse the results."""
     return fuse_prediction_results(
+        gps,
         predict_target_candidates(sparql, timeout, gps, source, parallel),
         fusion_methods
     )
@@ -1508,15 +1510,18 @@ def print_prediction_results(method, res, target=None, idx=None):
         )
 
 
-def evaluate_prediction(sparql, gps, predict_list):
+def evaluate_predictions(sparql, gps, gtps, gtp_predicted_fused_targets=None):
     recall = 0
     method_idxs = defaultdict(list)
     res_lens = []
     timeout = calibrate_query_timeout(sparql)
-    for i, (source, target) in enumerate(predict_list, 1):
+    for i, (source, target) in enumerate(gtps, 1):
         print('%d/%d: predicting target for %s (ground truth: %s):' % (
-            i, len(predict_list), source.n3(), target.n3()))
-        method_res = predict_target(sparql, timeout, gps, source)
+            i, len(gtps), source.n3(), target.n3()))
+        if gtp_predicted_fused_targets:
+            method_res = gtp_predicted_fused_targets[i-1]
+        else:
+            method_res = predict_fused_targets(sparql, timeout, gps, source)
         once = False
         for method, res in method_res.items():
             idx = find_in_prediction(res, target)
@@ -1533,8 +1538,8 @@ def evaluate_prediction(sparql, gps, predict_list):
 
             print_prediction_results(method, res, target, idx)
 
-    recall /= len(predict_list)
-    print("Prediction list: %s" % predict_list)
+    recall /= len(gtps)
+    print("Ground Truth Pairs: %s" % gtps)
     print("Result list lenghts: %s" % res_lens)
     print("Recall of test set: %.5f" % recall)
     for method, indices in sorted(method_idxs.items()):
@@ -1704,11 +1709,35 @@ def main(
     logging.info('Query reduction took: %s', timer_stop - timer_start)
     timer_start = timer_stop
 
-    if predict and predict != 'manual':
-        assert predict in ('train_set', 'test_set')
-        predict_list = assocs_train if predict == 'train_set' else assocs_test
+    if predict == 'train_set':
+        gtps = assocs_train if predict == 'train_set' else assocs_test
         print('\n\n\nstarting prediction on %s' % predict)
-        evaluate_prediction(sparql, gps, predict_list)
+
+        timeout = calibrate_query_timeout(sparql)
+        gtp_gp_tcs = [
+            predict_target_candidates(sparql, timeout, gps, source)
+            for source, target in gtps
+        ]
+
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        timer_stop = datetime.utcnow()
+        logging.info('Batch prediction of %s took: %s',
+                     predict, timer_stop - timer_start)
+        timer_start = timer_stop
+
+        gtp_predicted_fused_targets = [
+            fuse_prediction_results(gps, gp_tcs)
+            for gp_tcs in gtp_gp_tcs
+        ]
+
+        evaluate_predictions(sparql, gps, gtps, gtp_predicted_fused_targets)
+
+    if predict == 'test_set':
+        gtps = assocs_test
+        print('\n\n\nstarting prediction on %s' % predict)
+        evaluate_predictions(sparql, gps, gtps)
 
         sys.stdout.flush()
         sys.stderr.flush()
@@ -1730,6 +1759,6 @@ def main(
             )
             source = URIRef('http://dbpedia.org/resource/' + s)
 
-            method_res = predict_target(sparql, timeout, gps, source)
+            method_res = predict_fused_targets(sparql, timeout, gps, source)
             for method, res in method_res.items():
                 print_prediction_results(method, res)
