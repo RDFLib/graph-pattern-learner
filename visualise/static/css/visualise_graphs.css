@@ -84,6 +84,12 @@ input[type=number] {
     opacity: 0.5;
 }
 
+.credits {
+    margin-top: -48px;
+    margin-right: 15px;
+    float: right;
+}
+
 
 /*******************\
 **  graph styling  **
@@ -205,11 +211,6 @@ text.shadow {
     position: fixed;
     bottom: 20px;
     left: 40px;
-}
-
-#main-content .btn-toolbar .credits {
-    color: #333;
-    background-color: #fff;
 }
 
 .arrow-down,
