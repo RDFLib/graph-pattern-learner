@@ -277,7 +277,7 @@ Main.showGraph = function(graphIndex) {
     var t = document.title.split("#");
     var newTitle;
     if (graphIndex != null) {
-        newTitle = t.slice(0, -1).join("#")+"#Graph_"+graphIndex.toString();
+        newTitle = t.slice(0, -1).join("#")+"#Graph_"+(graphIndex-0+1);
     } else {
         newTitle = t.slice(0, -1).join("#");
     }

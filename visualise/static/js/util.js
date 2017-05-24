@@ -53,14 +53,14 @@ Util.encodeHash = function (view, pattern) {
     view = view || 'graph';
     if (view.indexOf('_') >= 0) throw "Don't use '_' in view names";
     if (view.indexOf('#') == 0) view = view.slice(1);
-    if (pattern != null) return "#" + view + "_" + pattern;
+    if (pattern != null) return "#" + view + "_" + (pattern-0+1);
     else return "#" + view
 };
 Util.decodeHash = function (hash) {
     hash = hash || window.location.hash;
     var re = new RegExp("#?([^_]+)_(.*)");
     var match = hash.match(re);
-    if (match != null) return match.slice(1, 3);
+    if (match != null) return [match[1], match[2]-1];
     re = new RegExp("#?([^_]+)");
     match = hash.match(re);
     if (match != null) return match.slice(1, 2);
