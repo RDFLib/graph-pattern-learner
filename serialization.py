@@ -17,6 +17,7 @@ from os import path
 import shelve
 import sys
 from time import sleep
+import cPickle as pickle
 
 import deap
 import deap.base
@@ -327,3 +328,45 @@ def print_results(
         'expected recall without rank limit: %.3f\n\n' % (
             cov_max_prec_gt_0 / len(coverage_counts))
     )
+
+
+def save_predicted_target_candidates(gps, gtps, gtp_gp_tcs, fn=None):
+    if fn is None:
+        fn = path.join(
+            config.RESDIR, 'predicted_train_target_candidates.pkl.gz')
+    with gzip.open(fn, 'wb') as f:
+        pickle.dump((gps, gtps, gtp_gp_tcs), f, pickle.HIGHEST_PROTOCOL)
+        logger.info('saved predictions to %s for later executions', fn)
+
+
+def load_predicted_target_candidates(fn=None):
+    if fn is None:
+        fn = path.join(
+            config.RESDIR, 'predicted_train_target_candidates.pkl.gz')
+    try:
+        with gzip.open(fn, 'rb') as f:
+            res = pickle.load(f)
+            logger.info('loaded %s from previous execution', fn)
+            return res
+    except IOError:
+        return None
+
+
+def save_fusion_model(fn, name, model):
+    if fn is None:
+        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % name)
+    with gzip.open(fn, 'wb') as f:
+        pickle.dump(model, f, pickle.HIGHEST_PROTOCOL)
+        logger.info('saved fusion model to %s for later executions', fn)
+
+
+def load_fusion_model(fn, name):
+    if fn is None:
+        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % name)
+    try:
+        with gzip.open(fn, 'rb') as f:
+            res = pickle.load(f)
+            logger.info('loaded %s from previous execution', fn)
+            return res
+    except IOError:
+        return None

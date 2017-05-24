@@ -45,6 +45,7 @@ from cluster import select_best_variant
 import config
 from exception import GPLearnerAbortException
 from fusion import fuse_prediction_results
+from fusion import train_fusion_models
 from gp_query import ask_multi_query
 from gp_query import calibrate_query_timeout
 from gp_query import combined_ask_count_multi_query
@@ -67,7 +68,8 @@ from ground_truth_tools import k_fold_cross_validation
 from ground_truth_tools import split_training_test_set
 from gtp_scores import GTPScores
 from memory_usage import log_mem_usage
-from serialization import find_last_result
+from serialization import find_last_result, load_predicted_target_candidates, \
+    save_predicted_target_candidates
 from serialization import find_run_result
 from serialization import format_graph_pattern
 from serialization import load_results
@@ -1710,22 +1712,38 @@ def main(
     timer_start = timer_stop
 
     if predict == 'train_set':
+        loaded_predictions = load_predicted_target_candidates()
         gtps = assocs_train if predict == 'train_set' else assocs_test
-        print('\n\n\nstarting prediction on %s' % predict)
+        if not loaded_predictions:
+            print('\n\n\nstarting prediction on %s' % predict)
 
-        timeout = calibrate_query_timeout(sparql)
-        gtp_gp_tcs = [
-            predict_target_candidates(sparql, timeout, gps, source)
-            for source, target in gtps
-        ]
+            timeout = calibrate_query_timeout(sparql)
+            gtp_gp_tcs = []
+            for i, (source, target) in enumerate(gtps):
+                logger.info(
+                    '%d/%d: predicting target candidates for source: %s '
+                    '(gt target: %s)',
+                    i+1, len(gtps), source, target
+                )
+                gtp_gp_tcs.append(
+                    predict_target_candidates(sparql, timeout, gps, source)
+                )
 
-        sys.stdout.flush()
-        sys.stderr.flush()
+            sys.stdout.flush()
+            sys.stderr.flush()
 
-        timer_stop = datetime.utcnow()
-        logging.info('Batch prediction of %s took: %s',
-                     predict, timer_stop - timer_start)
-        timer_start = timer_stop
+            timer_stop = datetime.utcnow()
+            logging.info('Batch prediction of %s took: %s',
+                         predict, timer_stop - timer_start)
+            timer_start = timer_stop
+
+            save_predicted_target_candidates(gps, gtps, gtp_gp_tcs)
+        else:
+            _gps, _gtps, gtp_gp_tcs = loaded_predictions
+            assert gps == _gps
+            assert gtps == _gtps
+
+        train_fusion_models(gps, gtps, gtp_gp_tcs)
 
         gtp_predicted_fused_targets = [
             fuse_prediction_results(gps, gp_tcs)
