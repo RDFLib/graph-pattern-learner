@@ -6,6 +6,7 @@ from __future__ import print_function
 from collections import Counter
 import logging
 import random
+import textwrap
 
 import rdflib
 from rdflib import URIRef
@@ -108,6 +109,38 @@ def test_mutate_merge_var():
             break
     else:
         assert False, "merge never reached one of the cases: %s" % cases
+
+
+def test_deep_narrow_path_query():
+    node_var = Variable('node_var')
+    edge_var = Variable('edge_var')
+    gtps = [
+        (dbp['Barrel'], dbp['Wine']),
+        (dbp['Barrister'], dbp['Law']),
+        (dbp['Beak'], dbp['Bird']),
+        (dbp['Blanket'], dbp['Bed']),
+    ]
+
+    gp = GraphPattern([
+        (node_var, edge_var, SOURCE_VAR),
+        (SOURCE_VAR, wikilink, TARGET_VAR)
+    ])
+
+    vars_ = (SOURCE_VAR, TARGET_VAR)
+    res = gp.to_deep_narrow_path_query(
+        edge_var, node_var, vars_, {vars_: gtps},
+        limit=32,
+        max_node_count=10,
+        min_edge_count=2,
+    ).strip()
+    doc = gp.to_deep_narrow_path_query.__doc__
+    doc_str_example_query = "\n".join([
+        l for l in doc.splitlines()
+        if l.startswith('         ')
+    ])
+    doc_str_example_query = textwrap.dedent(doc_str_example_query)
+    assert res == doc_str_example_query, \
+        "res:\n%s\n\ndoes not look like:\n\n%s" % (res, doc_str_example_query)
 
 
 def test_simplify_pattern():
@@ -272,3 +305,7 @@ def test_remaining_gain_sample_gtps():
 
 def test_gtp_scores():
     assert gtp_scores - gtp_scores == 0
+
+
+if __name__ == '__main__':
+    test_deep_narrow_path_query()

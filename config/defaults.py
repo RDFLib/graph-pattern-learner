@@ -85,6 +85,14 @@ MUTPB_FV_RGTP_SAMPLE_N = 128  # sample <= n remaining GTPs to fix variables for
 MUTPB_FV_SAMPLE_MAXN = 32  # max n of instantiations to sample from top k
 MUTPB_FV_QUERY_LIMIT = 256  # SPARQL query limit for the top k instantiations
 MUTPB_SP = 0.05  # prob to simplify pattern (warning: can restrict exploration)
+MUTPB_DN = 0.05  # prob to try a deep and narrow paths mutation
+MUTPB_DN_MIN_LEN = 2  # minimum length of the deep and narrow paths
+MUTPB_DN_MAX_LEN = 10  # max of path length if not stopped by term_pb
+MUTPB_DN_TERM_PB = 0.7  # prob to terminate expansion each step > min_len
+MUTPB_DN_MAX_NODE_COUNT = 10  # edge fixations may have <= nodes
+MUTPB_DN_MIN_EDGE_COUNT = 2  # edges need to be valid for >= GTPs
+MUTPB_DN_QUERY_LIMIT = 32  # SPARQL query limit for top edge fixations
+MUTPB_DN_REC_RETRIES = 3  # retrial attempts in each recursion, WARNING: EXP!
 
 # for import in helpers and __init__
 __all__ = [_v for _v in globals().keys() if _v.isupper()]

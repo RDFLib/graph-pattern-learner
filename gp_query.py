@@ -32,6 +32,8 @@ from graph_pattern import SOURCE_VAR
 from graph_pattern import TARGET_VAR
 from graph_pattern import ASK_VAR
 from graph_pattern import COUNT_VAR
+from graph_pattern import NODE_VAR_SUM
+from graph_pattern import EDGE_VAR_COUNT
 from utils import exception_stack_catcher
 from utils import kv_str
 from utils import sparql_json_result_bindings_to_rdflib
@@ -436,7 +438,6 @@ def _combined_chunk_res(q_res, _vars, _ret_val_mapping):
     return chunk_res
 
 
-
 def count_query(sparql, timeout, graph_pattern, source=None,
                 **kwds):
     assert isinstance(graph_pattern, GraphPattern)
@@ -618,6 +619,78 @@ def _var_subst_chunk_result_ext(q_res, _sel_var_and_vars, _, **kwds):
 
 def _var_subst_res_update(res, update, **_):
     res += update
+
+
+def dnp_query(
+        sparql, timeout, graph_pattern, source_target_pairs,
+        edge_var, node_var, max_node_count, min_edge_count, limit,
+        batch_size=config.BATCH_SIZE
+):
+    _vars, _values, _ret_val_mapping = _get_vars_values_mapping(
+        graph_pattern, source_target_pairs)
+    return _multi_query(
+        sparql, timeout, graph_pattern, source_target_pairs, batch_size,
+        _vars, _values, _ret_val_mapping,
+        _dnp_res_init, _dnp_chunk_q,
+        _dnp_chunk_result_ext,
+        _res_update=_dnp_res_update,
+        edge_var=edge_var,
+        node_var=node_var,
+        max_node_count=max_node_count,
+        min_edge_count=min_edge_count,
+        limit=limit,
+        # non standard, passed via **kwds, see handling below
+    )
+
+
+# noinspection PyUnusedLocal
+def _dnp_res_init(_, **kwds):
+    return Counter(), Counter()
+
+
+def _dnp_chunk_q(
+        gp, _vars, values_chunk,
+        edge_var, node_var, max_node_count, min_edge_count, limit,
+        **_
+):
+    return gp.to_deep_narrow_path_query(
+        edge_var=edge_var,
+        node_var=node_var,
+        vars_=_vars,
+        values={_vars: values_chunk},
+        max_node_count=max_node_count,
+        min_edge_count=min_edge_count,
+        limit=limit,
+    )
+
+
+# noinspection PyUnusedLocal
+def _dnp_chunk_result_ext(
+        q_res, _vars, _,
+        edge_var,
+        **kwds
+):
+    chunk_edge_count, chunk_node_sum = Counter(), Counter()
+    res_rows_path = ['results', 'bindings']
+    bindings = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res, res_rows_path, default=[])
+    )
+
+    for row in bindings:
+        row_res = get_path(row, [edge_var])
+        edge_count = int(get_path(row, [EDGE_VAR_COUNT], '0'))
+        chunk_edge_count[row_res] += edge_count
+        node_sum_count = int(get_path(row, [NODE_VAR_SUM], '0'))
+        chunk_node_sum[row_res] += node_sum_count
+    return chunk_edge_count, chunk_node_sum,
+
+
+def _dnp_res_update(res, up, **_):
+    edge_count, node_sum_count = res
+    if up:
+        chunk_edge_count, chunk_node_sum = up
+        edge_count.update(chunk_edge_count)
+        node_sum_count.update(chunk_node_sum)
 
 
 def generate_stps_from_gp(sparql, gp):
