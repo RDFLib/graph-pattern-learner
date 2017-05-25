@@ -70,8 +70,6 @@ Main.main = function() {
 };
 
 Main.init = function() {
-    var accum = Sidebar.accumulatedRadioSelected();
-
     Main.resetAll();
 
     var gn = Main.graphsParsed["generation_number"];
@@ -93,12 +91,56 @@ Main.init = function() {
         Main.graphsParsed["graphs"],
         Sidebar.clickGraphPattern.bind(Sidebar));
 
-    Sidebar.clickFirstRadio(!(accum || Main.graphsParsed.graphs.length === 0));
+    Main.loadFromHash();
     Sidebar.addFingerprints(FingerprintView); // has to happen after FingerprintView.init
 
+    $(function() {startTour(false)});
+};
+
+Main.historyLocked = false;
+
+Main.updateHash = function(obj) {
+    if (Main.historyLocked) return;
+    Main.historyLocked = true;
+    obj = $(obj || '.nav-tabs li.active a');
+    var view = obj.attr('href');
+    var pattern = Sidebar.getSelected();
+    var newHash = Util.encodeHash(view, pattern);
+    if (newHash != window.location.hash) {
+        window.history.pushState(
+            window.history.state, document.title, Util.replaceHash(newHash));
+    }
+    Main.historyLocked = false;
+};
+
+Main.loadFromHash = function (hash) {
+    if (Main.historyLocked) return;
+    Main.historyLocked = true;
+    var parsedHash = Util.decodeHash(hash) || ['graph', 0];
+    $('.nav-tabs li a[href="#'+parsedHash[0]+'"]').click();
+    if (parsedHash.length == 2) {
+        Sidebar.clickGraphPattern(parsedHash[1]);
+    } else {
+        Sidebar.clickFirstRadio(false);
+    }
+    Main.historyLocked = false;
 };
 
 Main.setBindings = function() {
+    $('.nav-tabs a').click(function (e) {
+        Main.updateHash(this);
+    });
+
+    $(window).on('popstate', function(event) {
+        var state = event.originalEvent.state;
+        if (state != null && 'fn' in state) {
+            if (state.fn != Main.graphsParsed.filename) {
+                DataLoader.loadFile(state.fn);
+            }
+        }
+        Main.loadFromHash();
+    });
+
     function runOrGenChanged() {
         var r = $("#info-run").val();
         var g = $("#info-generation").val();
@@ -186,7 +228,6 @@ Main.setBindings = function() {
     });
 
     $("#help-icon").click(function() {startTour(true)});
-    $(function() {startTour(false)});
 
     $("input.switchify[type='checkbox']").bootstrapSwitch();
 
@@ -234,11 +275,14 @@ Main.showGraph = function(graphIndex) {
     FingerprintView.selectGP(graphIndex);
 
     var t = document.title.split("#");
+    var newTitle;
     if (graphIndex != null) {
-        document.title = t.slice(0, -1).join("#")+"#Graph_"+graphIndex.toString();
+        newTitle = t.slice(0, -1).join("#")+"#Graph_"+(graphIndex-0+1);
     } else {
-        document.title = t.slice(0, -1).join("#");
+        newTitle = t.slice(0, -1).join("#");
     }
+    document.title = newTitle;
+    Main.updateHash();
 };
 
 Main.resetAll = function() {
@@ -254,9 +298,11 @@ Main.resetAll = function() {
 
 Main.startWaitScreen = function() {
     $(".modal-load-overlay").removeClass('collapsed');
+    var _ = $(".modal-load-overlay")[0].offsetHeight; // force layout refresh
 };
 Main.stopWaitScreen = function() {
     $(".modal-load-overlay").addClass('collapsed');
+    var _ = $(".modal-load-overlay")[0].offsetHeight; // force layout refresh
 };
 
 
