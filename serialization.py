@@ -330,13 +330,30 @@ def print_results(
     )
 
 
-def save_predicted_target_candidates(gps, gtps, gtp_gp_tcs, fn=None):
-    if fn is None:
-        fn = path.join(
-            config.RESDIR, 'predicted_train_target_candidates.pkl.gz')
+def save_predicted_target_candidates(gps, gtps, gtp_gp_tcs):
+    fn = path.join(
+        config.RESDIR, 'predicted_train_target_candidates.pkl.gz')
     with gzip.open(fn, 'wb') as f:
         pickle.dump((gps, gtps, gtp_gp_tcs), f, pickle.HIGHEST_PROTOCOL)
         logger.info('saved predictions to %s for later executions', fn)
+
+    # also save as simplified json for experimenting
+    fn = path.join(
+        config.RESDIR, 'predicted_train_target_candidates.json.gz')
+    res = {
+        'gps': [gp.to_dict() for gp in gps],
+        'gtps': [(s.n3(), t.n3()) for s, t in gtps],
+        'gtp_gp_tcs': [
+            [
+                [tc.n3() for tc in tcs]
+                for tcs in gp_tcs
+            ]
+            for gp_tcs in gtp_gp_tcs
+        ]
+    }
+    with gzip.open(fn, 'wb') as f:
+        json.dump(res, f, indent=2)
+        logger.info('saved predictions to %s for external use', fn)
 
 
 def load_predicted_target_candidates(fn=None):
@@ -352,17 +369,20 @@ def load_predicted_target_candidates(fn=None):
         return None
 
 
-def save_fusion_model(fn, name, model):
+def save_fusion_model(fn, fm, overwrite=False):
     if fn is None:
-        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % name)
+        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % fm.name)
+    if path.exists(fn) and not overwrite:
+        logger.info('skipped overwriting %s', fn)
+        return
     with gzip.open(fn, 'wb') as f:
-        pickle.dump(model, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(fm, f, pickle.HIGHEST_PROTOCOL)
         logger.info('saved fusion model to %s for later executions', fn)
 
 
-def load_fusion_model(fn, name):
+def load_fusion_model(fn, fm):
     if fn is None:
-        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % name)
+        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % fm.name)
     try:
         with gzip.open(fn, 'rb') as f:
             res = pickle.load(f)

@@ -68,8 +68,9 @@ from ground_truth_tools import k_fold_cross_validation
 from ground_truth_tools import split_training_test_set
 from gtp_scores import GTPScores
 from memory_usage import log_mem_usage
-from serialization import find_last_result, load_predicted_target_candidates, \
-    save_predicted_target_candidates
+from serialization import find_last_result
+from serialization import load_predicted_target_candidates
+from serialization import save_predicted_target_candidates
 from serialization import find_run_result
 from serialization import format_graph_pattern
 from serialization import load_results
@@ -1512,9 +1513,12 @@ def print_prediction_results(method, res, target=None, idx=None):
         )
 
 
-def evaluate_predictions(sparql, gps, gtps, gtp_predicted_fused_targets=None):
+def evaluate_predictions(
+        sparql, gps, gtps,
+        gtp_predicted_fused_targets=None, fusion_methods=None):
     recall = 0
     method_idxs = defaultdict(list)
+    method_order = []
     res_lens = []
     timeout = calibrate_query_timeout(sparql)
     for i, (source, target) in enumerate(gtps, 1):
@@ -1523,8 +1527,11 @@ def evaluate_predictions(sparql, gps, gtps, gtp_predicted_fused_targets=None):
         if gtp_predicted_fused_targets:
             method_res = gtp_predicted_fused_targets[i-1]
         else:
-            method_res = predict_fused_targets(sparql, timeout, gps, source)
+            method_res = predict_fused_targets(
+                sparql, timeout, gps, source, fusion_methods=fusion_methods)
         once = False
+        if not method_order:
+            method_order = method_res.keys()
         for method, res in method_res.items():
             idx = find_in_prediction(res, target)
             if not once:
@@ -1544,7 +1551,7 @@ def evaluate_predictions(sparql, gps, gtps, gtp_predicted_fused_targets=None):
     print("Ground Truth Pairs: %s" % gtps)
     print("Result list lenghts: %s" % res_lens)
     print("Recall of test set: %.5f" % recall)
-    for method, indices in sorted(method_idxs.items()):
+    for method, indices in [(m, method_idxs[m]) for m in method_order]:
         print("\nIndices for method %s:\n'%s': %s" % (method, method, indices))
         avg_idx = np.average([i for i in indices if i >= 0])
         median_idx = np.median([i for i in indices if i >= 0])
@@ -1574,6 +1581,7 @@ def main(
         clustering_variant=None,
         print_query_patterns=False,
         predict='',
+        fusion_methods=None,
         tests=False,
         **kwds
 ):
@@ -1728,6 +1736,7 @@ def main(
                 gtp_gp_tcs.append(
                     predict_target_candidates(sparql, timeout, gps, source)
                 )
+            save_predicted_target_candidates(gps, gtps, gtp_gp_tcs)
 
             sys.stdout.flush()
             sys.stderr.flush()
@@ -1736,26 +1745,33 @@ def main(
             logging.info('Batch prediction of %s took: %s',
                          predict, timer_stop - timer_start)
             timer_start = timer_stop
-
-            save_predicted_target_candidates(gps, gtps, gtp_gp_tcs)
         else:
             _gps, _gtps, gtp_gp_tcs = loaded_predictions
             assert gps == _gps
             assert gtps == _gtps
 
-        train_fusion_models(gps, gtps, gtp_gp_tcs)
+        train_fusion_models(gps, gtps, gtp_gp_tcs, fusion_methods)
+        timer_stop = datetime.utcnow()
+        logging.info(
+            'Training fusion models took: %s', timer_stop - timer_start)
+        timer_start = timer_stop
 
+        logging.info('Batch fusing all prediction candidates...')
         gtp_predicted_fused_targets = [
-            fuse_prediction_results(gps, gp_tcs)
+            fuse_prediction_results(gps, gp_tcs, fusion_methods)
             for gp_tcs in gtp_gp_tcs
         ]
+        timer_stop = datetime.utcnow()
+        logging.info('Batch fusing all prediction candidates took: %s',
+                     timer_stop - timer_start)
+        timer_start = timer_stop
 
         evaluate_predictions(sparql, gps, gtps, gtp_predicted_fused_targets)
 
     if predict == 'test_set':
         gtps = assocs_test
         print('\n\n\nstarting prediction on %s' % predict)
-        evaluate_predictions(sparql, gps, gtps)
+        evaluate_predictions(sparql, gps, gtps, fusion_methods=fusion_methods)
 
         sys.stdout.flush()
         sys.stderr.flush()
@@ -1777,6 +1793,7 @@ def main(
             )
             source = URIRef('http://dbpedia.org/resource/' + s)
 
-            method_res = predict_fused_targets(sparql, timeout, gps, source)
+            method_res = predict_fused_targets(
+                sparql, timeout, gps, source, fusion_methods)
             for method, res in method_res.items():
                 print_prediction_results(method, res)

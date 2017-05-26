@@ -8,6 +8,7 @@ from collections import OrderedDict
 from operator import mul, itemgetter
 import logging
 
+import numpy as np
 from sklearn import svm
 from sklearn import naive_bayes
 from sklearn import neighbors
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 class Fusion(object):
     name = 'base_fusion'
 
-    def train(self, gps, gtps, target_candidate_lists):
+    def train(self, gps, gtps, target_candidate_lists, vecs_labels=None):
         pass
 
     def save(self, filename=None):
@@ -43,7 +44,7 @@ class Fusion(object):
     def load(self, filename=None):
         pass
 
-    def fuse(self, gps, target_candidate_lists):
+    def fuse(self, gps, target_candidate_lists, targets_vecs=None):
         raise NotImplementedError
 
 
@@ -67,7 +68,7 @@ class BasicWeightedFusion(Fusion):
         self.getter_tcs = getter_tcs
         self.combine = combine_getters
 
-    def fuse(self, gps, target_candidate_lists):
+    def fuse(self, gps, target_candidate_lists, targets_vecs=None):
         c = Counter()
         for gp, tcs in zip(gps, target_candidate_lists):
             gpg = self.getter_gp(gp)
@@ -98,7 +99,7 @@ def _precisions_getter(tcs):
         return 1
 
 
-basic_fusion_methods = [
+_basic_fusion_methods = [
     BasicWeightedFusion(
         'target_occs',
         'a simple occurrence count of the target over all gps.'),
@@ -131,56 +132,112 @@ basic_fusion_methods = [
         'same as above but scaled with precision',
         getter_gp=_gp_precisions_getter, getter_tcs=_precisions_getter),
 ]
+basic_fusion_methods = OrderedDict([
+    (_fm.name, _fm) for _fm in _basic_fusion_methods
+])
 
 
-def candidate_lists_to_gp_vectors(gps, gtps, target_candidate_lists):
+def candidate_lists_to_gp_vectors(
+        _, gtps, target_candidate_lists,
+        print_vecs=False,
+        warn_about_multiclass_vecs=False,
+):
     assert len(gtps) == len(target_candidate_lists)
-    X = []
-    y = []
+    logger.info('transforming all candidate lists to vectors')
+    vecs = []
+    labels = []
     for gtp, gp_tcs in zip(gtps, target_candidate_lists):
         source, target = gtp
         targets = set(tc for tcs in gp_tcs for tc in tcs)
         for t in targets:
-            vec = [t in tcs for tcs in gp_tcs]
+            vec = tuple(t in tcs for tcs in gp_tcs)
             label = t == target
-            X.append(vec)
-            y.append(label)
-    return X, y
+            vecs.append(vec)
+            labels.append(label)
+
+    if print_vecs:
+        for v, l in zip(vecs, labels):
+            print('%s: %s' % (l, [1 if x else 0 for x in v]))
+
+    if warn_about_multiclass_vecs:
+        # warn about vectors occurring several times with different labels
+        c = Counter(vecs)
+        logger.info('unique vectors: %d, (total: %d)', len(c), len(vecs))
+        for v, occ in c.most_common():
+            if occ == 1:
+                break
+            idxs = [i for i, vec in enumerate(vecs) if vec == v]
+            cl = Counter([labels[i] for i in idxs])
+            if len(cl) > 1:
+                logger.warning(
+                    'same vector shall be classified differently: %s\n%s',
+                    cl, [1 if x else 0 for x in v]
+                )
+
+    return np.array(vecs), np.array(labels)
 
 
-def gp_tcs_to_vecs(gps, gp_tcs):
+def gp_tcs_to_vecs(_, gp_tcs):
     targets = sorted(set(tc for tcs in gp_tcs for tc in tcs))
-    X = []
+    vecs = []
     for t in targets:
-        vec = [t in tcs for tcs in gp_tcs]
-        X.append(vec)
-    return targets, X
+        vec = tuple(t in tcs for tcs in gp_tcs)
+        vecs.append(vec)
+    return targets, np.array(vecs)
 
 
 class FusionModel(object):
     def __init__(self, name, clf):
         self.name = name
+        self.gps = None
         self.clf = clf
         self.model = None  # None until trained, then clf
         self._fuse_auto_load = True
+        self.loaded = False
 
-    def train(self, gps, gtps, target_candidate_lists):
-        logger.info('training fusion model %s', self.name)
-        X, y = candidate_lists_to_gp_vectors(gps, gtps, target_candidate_lists)
-        self.clf.fit(X, y)
+    def train(self, gps, gtps, target_candidate_lists, vecs_labels=None):
+        self.gps = gps
+        self.load()
+        if self.model:
+            logger.info(
+                're-using trained fusion model %s from previous exec',
+                self.name)
+            return
+        if vecs_labels:
+            vecs, labels = vecs_labels
+        else:
+            vecs, labels = candidate_lists_to_gp_vectors(
+                gps, gtps, target_candidate_lists)
+        logger.info(
+            'training fusion model %s on %d samples', self.name, len(vecs))
+        self.clf.fit(vecs, labels)
         self.model = self.clf
-        score = self.model.score(X, y)
+        score = self.model.score(vecs, labels)
         logger.info('score on training set: %.3f', score)
+        self.save()
 
-    def save(self, filename=None):
-        logger.info('saving fusion model %s', self.name)
-        save_fusion_model(filename, self.name, self.model)
+    def save(self, filename=None, overwrite=False):
+        if not self.loaded or overwrite:
+            save_fusion_model(filename, self, overwrite)
 
     def load(self, filename=None):
-        logger.info('loading fusion model %s', self.name)
-        self.model = load_fusion_model(filename, self.name)
+        res = load_fusion_model(filename, self)
+        if res:
+            if self.gps is None:
+                self.gps = res.gps
+            if self.gps == res.gps:
+                self.model = res.model
+                self.clf = self.model
+                self.loaded = True
+            else:
+                logger.warning(
+                    'ignoring loading attempt for fusion model %s that seems '
+                    'to have been trained on other gps',
+                    self.name
+                )
+        return self.loaded
 
-    def fuse(self, gps, target_candidate_lists):
+    def fuse(self, gps, target_candidate_lists, targets_vecs=None):
         if not self.model and self._fuse_auto_load:
             self.load()
             if not self.model:
@@ -192,29 +249,39 @@ class FusionModel(object):
         if not self.model:
             return []
         self._fuse_auto_load = False
-        targets, X = gp_tcs_to_vecs(gps, target_candidate_lists)
-        pred = self.model.predict(X)
-        return sorted(zip(targets, pred), key=itemgetter(1, 0), reverse=True)
+        if targets_vecs:
+            targets, vecs = targets_vecs
+        else:
+            targets, vecs = gp_tcs_to_vecs(gps, target_candidate_lists)
+        # pred = self.model.predict(vecs)
+        pred_class_probs = self.model.predict_proba(vecs)
+        # our classes are boolean, [0,1], get probs for [1] by * and sum
+        probs = np.sum(pred_class_probs * self.model.classes_, axis=1)
+        return sorted(zip(targets, probs), key=itemgetter(1, 0), reverse=True)
 
 
 _fm = FusionModel
 
-classifiers = [
+_classifier_fusion_methods = [
+    # training & prediction takes long:
     FusionModel(
         "knn3",
         KNeighborsClassifier(3)),
+    # training & prediction takes long:
     FusionModel(
         "knn5",
         KNeighborsClassifier(5)),
     FusionModel(
         "svm_linear",
-        SVC(kernel="linear", C=0.025)),
+        SVC(kernel="linear", C=0.1, probability=True, class_weight='balanced')),
+    # training takes long:
     FusionModel(
         "svm_rbf",
-        SVC(gamma=2, C=1)),
-    FusionModel(
-        "gaussian_process",
-        GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True)),
+        SVC(gamma=2, C=1, probability=True, class_weight='balanced')),
+    # # training out of ram:
+    # FusionModel(
+    #     "gaussian_process",
+    #     GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True)),
     FusionModel(
         "decision_tree",
         DecisionTreeClassifier(max_depth=5)),
@@ -234,28 +301,51 @@ classifiers = [
         "qda",
         QuadraticDiscriminantAnalysis()),
 ]
+classifier_fusion_methods = OrderedDict([
+    (_fm.name, _fm) for _fm in _classifier_fusion_methods
+])
 
 # class RankSVMFusion(FusionModel):
 #     name = 'rank_svm'
 #
 # _fusion_methods['rank_svm'] = RankSVMFusion()
 
+all_fusion_methods = OrderedDict(
+    basic_fusion_methods.items()
+    + classifier_fusion_methods.items()
+)
 
 
-_fusion_methods = OrderedDict([
-    (_fm.name, _fm) for _fm in basic_fusion_methods + classifiers
-])
+def get_fusion_methods_from_str(fms_arg=None):
+    if not fms_arg:
+        return all_fusion_methods.values()
+
+    fmsl = [s.strip() for s in fms_arg.split(',')]
+    # replace with fusion methods, also expanding 'basic' and 'classifiers'
+    fml = []
+    for s in fmsl:
+        if s == 'basic':
+            fml.extend(basic_fusion_methods.values())
+        elif s == 'classifiers':
+            fml.extend(classifier_fusion_methods.values())
+        else:
+            try:
+                fml.append(all_fusion_methods[s])
+            except KeyError:
+                logger.error(
+                    'unknown fusion method: %s\navailable: %s',
+                    s, ['basic', 'classifiers'] + all_fusion_methods.keys()
+                )
+                raise
+
+    return fml
 
 
 def train_fusion_models(gps, gtps, target_candidate_lists, fusion_methods=None):
-    if fusion_methods is None:
-        fusion_methods = _fusion_methods.values()
-    else:
-        assert fusion_methods and isinstance(fusion_methods[0], basestring)
-        fusion_methods = [_fusion_methods[fmn] for fmn in fusion_methods]
-    for fm in fusion_methods:
-        fm.train(gps, gtps, target_candidate_lists)
-        fm.save()
+    vecs_labels = candidate_lists_to_gp_vectors(
+        gps, gtps, target_candidate_lists)
+    for fm in get_fusion_methods_from_str(fusion_methods):
+        fm.train(gps, gtps, target_candidate_lists, vecs_labels)
 
 
 def fuse_prediction_results(gps, target_candidate_lists, fusion_methods=None):
@@ -272,16 +362,11 @@ def fuse_prediction_results(gps, target_candidate_lists, fusion_methods=None):
     """
     assert len(gps) == len(target_candidate_lists)
 
-    if fusion_methods is None:
-        fusion_methods = _fusion_methods.values()
-    else:
-        assert fusion_methods and isinstance(fusion_methods[0], basestring)
-        fusion_methods = [_fusion_methods[fmn] for fmn in fusion_methods]
-
+    targets_vecs = gp_tcs_to_vecs(gps, target_candidate_lists)
     res = OrderedDict()
-    for fm in fusion_methods:
+    for fm in get_fusion_methods_from_str(fusion_methods):
         try:
-            res[fm.name] = fm.fuse(gps, target_candidate_lists)
+            res[fm.name] = fm.fuse(gps, target_candidate_lists, targets_vecs)
         except NotImplementedError:
             logger.warning(
                 'seems %s is not implemented yet, but called', fm.name

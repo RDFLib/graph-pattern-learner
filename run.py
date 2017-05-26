@@ -123,6 +123,21 @@ if __name__ == "__main__":
         default="",
     )
 
+    parser.add_argument(
+        "--fusion_methods",
+        help="Which fusion methods to train / use. During prediction, each of "
+             "the learned patterns can generate a list of target candidates. "
+             "Fusion allows to re-combine these into a single ranked list of "
+             "predicted targets. By default this will train and use all "
+             "implemented fusion methods. Any of them, or a ',' delimited list "
+             "can be used to reduce the output (just make sure you ran "
+             "--predict=train_set on them before). Also supports 'basic' and "
+             "'classifier' as shorthands.",
+        action="store",
+        type=str,
+        default=None,
+    )
+
     cfg_group = parser.add_argument_group(
         'Advanced config overrides',
         'The following allow overriding default values from config/defaults.py'
