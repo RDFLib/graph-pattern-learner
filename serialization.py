@@ -79,8 +79,8 @@ def save_population(run, ngen, top_gps, gtp_scores):
         gtp_scores=gtp_scores,
         run=run,
         ngen=ngen,
-        file_prefix=file_prefix)
-    set_symlink(file_path, config.SYMLINK_CURRENT_RES_RUN_GEN)
+        file_prefix=path.join('generations', file_prefix))
+    set_symlink(file_path, 'top_graph_patterns_current.json.gz')
 
 
 def set_symlink(file_path, symlink_name):
@@ -93,19 +93,43 @@ def set_symlink(file_path, symlink_name):
 
 def remove_old_result_files():
     logger.info("removing old result files...")
-    for fn in glob(path.join(config.RESDIR, 'top_graph_patterns_*.json.gz')):
+    gen_files = glob(
+        path.join(config.RESDIR, 'top_graph_patterns_*.json.gz')) + glob(
+        path.join(config.RESDIR, 'generations', 'top_graph_patterns_*.json.gz'))
+    run_files = glob(
+        path.join(config.RESDIR, config.RES_RUN_PREFIX + '_*.json.gz')) + glob(
+        path.join(config.RESDIR, 'runs', config.RES_RUN_PREFIX + '_*.json.gz'))
+    res_files = glob(path.join(config.RESDIR, 'results_*.json.gz'))
+    for fn in gen_files + run_files + res_files:
         logger.info("removing old %s", fn)
         os.remove(fn)
-    for fn in glob(path.join(config.RESDIR,
-                             config.RES_RUN_PREFIX + '_*.json.gz')):
-        logger.info("removing old %s", fn)
-        os.remove(fn)
-    for sln in [config.SYMLINK_CURRENT_RES_RUN_GEN,
+    for sln in ['top_graph_patterns_current.json.gz',
                 config.SYMLINK_CURRENT_RES_RUN]:
         symlink_path = path.join(config.RESDIR, sln)
         if path.islink(symlink_path):
             logger.info("removing old %s", symlink_path)
             os.remove(symlink_path)
+
+
+def save_run(
+        new_patterns, coverage_counts, run_gtp_scores, overall_gtp_scores, run):
+    fp = save_results(
+        new_patterns,
+        coverage_counts=coverage_counts,
+        gtp_scores=run_gtp_scores,
+        overall_gtp_scores=overall_gtp_scores,
+        run=run,
+        file_prefix=path.join('runs', config.RES_RUN_PREFIX + '_%02d' % run)
+    )
+    set_symlink(fp, config.SYMLINK_CURRENT_RES_RUN)
+
+
+def make_dirs_for(file_path):
+    try:
+        os.makedirs(path.dirname(file_path))
+    except OSError:
+        pass
+    return file_path
 
 
 def save_results(
@@ -188,11 +212,7 @@ def save_results(
 
     if kwds:
         res.update(**kwds)
-    try:
-        os.makedirs(path.dirname(file_path))
-    except OSError:
-        pass
-    with gzip.open(file_path, 'w') as f:
+    with gzip.open(make_dirs_for(file_path), 'w') as f:
         json.dump(res, f, indent=2)
     logger.info('saved results to %s', file_path)
     return file_path
@@ -219,18 +239,23 @@ def pause_if_signaled_by_file(waitfile=None, poll_interval=15):
 
 
 def find_last_result():
-    # will only work the next 985 years ;-/
-    result_file_names = glob(path.join(config.RESDIR, 'results_2*.json.gz'))
+    # will only work the next 983 years ;-/
+    result_file_names = glob(
+        path.join(config.RESDIR, 'results_2*.json.gz')) + glob(
+        path.join(config.RESDIR, 'runs', 'results_2*.json.gz'))
     if result_file_names:
-        return sorted(result_file_names)[-1]
+        return sorted(result_file_names, key=path.basename)[-1]
     else:
         return None
 
 
 def find_run_result(run):
-    fn = glob(path.join(config.RESDIR, config.RES_RUN_PREFIX + '_%02d_*' % run))
+    r = config.RES_RUN_PREFIX + '_%02d_*' % run
+    fn = glob(
+        path.join(config.RESDIR, r)) + glob(
+        path.join(config.RESDIR, 'runs', r))
     if fn:
-        return sorted(fn)[-1]
+        return sorted(fn, key=path.basename)[-1]
     else:
         return None
 
@@ -362,8 +387,9 @@ def load_predicted_target_candidates(fn=None):
             config.RESDIR, 'predicted_train_target_candidates.pkl.gz')
     try:
         with gzip.open(fn, 'rb') as f:
+            logger.info('loading %s from previous execution', fn)
             res = pickle.load(f)
-            logger.info('loaded %s from previous execution', fn)
+            logger.info('loaded %s', fn)
             return res
     except IOError:
         return None
@@ -371,18 +397,20 @@ def load_predicted_target_candidates(fn=None):
 
 def save_fusion_model(fn, fm, overwrite=False):
     if fn is None:
-        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % fm.name)
+        fn = path.join(
+            config.RESDIR, 'fusion', 'fusion_model_%s.pkl.gz' % fm.name)
     if path.exists(fn) and not overwrite:
         logger.info('skipped overwriting %s', fn)
         return
-    with gzip.open(fn, 'wb') as f:
+    with gzip.open(make_dirs_for(fn), 'wb') as f:
         pickle.dump(fm, f, pickle.HIGHEST_PROTOCOL)
         logger.info('saved fusion model to %s for later executions', fn)
 
 
 def load_fusion_model(fn, fm):
     if fn is None:
-        fn = path.join(config.RESDIR, 'fusion_model_%s.pkl.gz' % fm.name)
+        fn = path.join(
+            config.RESDIR, 'fusion', 'fusion_model_%s.pkl.gz' % fm.name)
     try:
         with gzip.open(fn, 'rb') as f:
             res = pickle.load(f)

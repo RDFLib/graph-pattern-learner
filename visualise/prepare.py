@@ -37,7 +37,8 @@ SPARQL_BASE_URI = "http://dbpedia.org/sparql?qtxt="
 def get_all_runs_and_gens(src):
     """returns dict of type {run: gens, run: gens, ... }"""
     gens = defaultdict(lambda: 0)
-    fns = glob(path.join(src, 'top_graph_patterns_run_*_gen_*.json.gz'))
+    t = 'top_graph_patterns_run_*_gen_*.json.gz'
+    fns = glob(path.join(src, t)) + glob(path.join(src, 'generations', t))
     for fn in fns:
         m = re.match(
             r".*/top_graph_patterns_run_(?P<run>\d+)_gen_(?P<gen>\d+).*"
@@ -71,11 +72,15 @@ def generate_global_vars_js(src, dst):
 
 def copy_single_latest_file_without_timestamp(src, dst, fn):
     fn_base = fn.rsplit('.json.gz', 1)[0]
+    t = '%s_[0-9][0-9][0-9][0-9]-*.json.gz' % fn_base
+    fns = glob(
+        path.join(src, t)) + glob(
+        path.join(src, 'runs', t)) + glob(
+        path.join(src, 'generations', t))
     fns_ts = [
-        fn_ for fn_ in glob(
-            path.join(src, '%s_[0-9][0-9][0-9][0-9]-*.json.gz' % fn_base))
+        fn_ for fn_ in fns
     ]
-    fns_ts = sorted(fns_ts)
+    fns_ts = sorted(fns_ts, key=path.basename)
     if not fns_ts:
         logging.warning("Couldn't find %s" % fn)
         return

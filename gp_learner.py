@@ -81,6 +81,7 @@ from serialization import print_results
 from serialization import remove_old_result_files
 from serialization import save_population
 from serialization import save_results
+from serialization import save_run
 from serialization import set_symlink
 from utils import exception_stack_catcher
 from utils import kv_str
@@ -1335,14 +1336,13 @@ def _find_graph_pattern_coverage_run(
 
     run_gtp_scores = gtp_scores.copy_reset()
     run_gtp_scores.update_with_gps(new_best_gps)
-    fp = save_results(
-        new_best_patterns, coverage_counts,
-        gtp_scores=run_gtp_scores,
+    save_run(
+        new_best_patterns,
+        coverage_counts=coverage_counts,
+        run_gtp_scores=run_gtp_scores,
         overall_gtp_scores=gtp_scores,
         run=run,
-        file_prefix=config.RES_RUN_PREFIX + '_%02d' % run
     )
-    set_symlink(fp, config.SYMLINK_CURRENT_RES_RUN)
 
     if user_callback_per_run:
         user_callback_per_run(
