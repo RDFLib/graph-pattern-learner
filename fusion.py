@@ -10,6 +10,7 @@ import logging
 
 import numpy as np
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import FeatureUnion
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 class Fusion(object):
     name = 'base_fusion'
 
-    def train(self, gps, gtps, target_candidate_lists, vecs_labels=None):
+    def train(self, gps, gtps, target_candidate_lists, training_tuple=None):
         pass
 
     def save(self, filename=None):
@@ -135,7 +136,7 @@ basic_fm = [
 ]
 
 
-def candidate_lists_to_gp_vectors(
+def prep_training(
         _, gtps, target_candidate_lists,
         print_vecs=False,
         warn_about_multiclass_vecs=False,
@@ -143,6 +144,8 @@ def candidate_lists_to_gp_vectors(
     assert len(gtps) == len(target_candidate_lists)
     logger.info('transforming all candidate lists to vectors')
     vecs = []
+    vtc = []
+    vgtp = []
     labels = []
     for gtp, gp_tcs in zip(gtps, target_candidate_lists):
         source, target = gtp
@@ -151,6 +154,8 @@ def candidate_lists_to_gp_vectors(
             vec = tuple(t in tcs for tcs in gp_tcs)
             label = t == target
             vecs.append(vec)
+            vtc.append(t)
+            vgtp.append(gtp)
             labels.append(label)
 
     if print_vecs:
@@ -160,19 +165,19 @@ def candidate_lists_to_gp_vectors(
     if warn_about_multiclass_vecs:
         # warn about vectors occurring several times with different labels
         c = Counter(vecs)
+        pos = Counter(vec for vec, l in zip(vecs, labels) if l)
         logger.info('unique vectors: %d, (total: %d)', len(c), len(vecs))
         for v, occ in c.most_common():
             if occ == 1:
                 break
-            idxs = [i for i, vec in enumerate(vecs) if vec == v]
-            cl = Counter([labels[i] for i in idxs])
-            if len(cl) > 1:
+            if 0 < pos[v] < occ:
                 logger.warning(
-                    'same vector shall be classified differently: %s\n%s',
-                    cl, [1 if x else 0 for x in v]
+                    'same vector shall be classified differently:'
+                    'pos: %d, neg: %d\n%s',
+                    pos[v], occ - pos[v], [1 if x else 0 for x in v]
                 )
 
-    return np.array(vecs), np.array(labels)
+    return np.array(vecs), np.array(labels), vtc, vgtp
 
 
 def vecs_labels_to_unique_vecs_ratio(vecs, labels):
@@ -201,7 +206,7 @@ class FusionModel(Fusion):
         self._fuse_auto_load = True
         self.loaded = False
 
-    def train(self, gps, gtps, target_candidate_lists, vecs_labels=None):
+    def train(self, gps, gtps, target_candidate_lists, training_tuple=None):
         self.gps = gps
         self.load()
         if self.model:
@@ -209,11 +214,9 @@ class FusionModel(Fusion):
                 're-using trained fusion model %s from previous exec',
                 self.name)
             return
-        if vecs_labels:
-            vecs, labels = vecs_labels
-        else:
-            vecs, labels = candidate_lists_to_gp_vectors(
-                gps, gtps, target_candidate_lists)
+        if not training_tuple:
+            training_tuple = prep_training(gps, gtps, target_candidate_lists)
+        vecs, labels, vtcs, vgtps = training_tuple
 
         if config.FUSION_CMERGE_VECS:
             # Without merging, we typically have to deal with ~60K vecs.
@@ -408,10 +411,9 @@ def get_fusion_methods_from_str(fms_arg=None):
 
 
 def train_fusion_models(gps, gtps, target_candidate_lists, fusion_methods=None):
-    vecs_labels = candidate_lists_to_gp_vectors(
-        gps, gtps, target_candidate_lists)
+    training_tuple = prep_training(gps, gtps, target_candidate_lists)
     for fm in get_fusion_methods_from_str(fusion_methods):
-        fm.train(gps, gtps, target_candidate_lists, vecs_labels)
+        fm.train(gps, gtps, target_candidate_lists, training_tuple)
 
 
 def fuse_prediction_results(gps, target_candidate_lists, fusion_methods=None):
