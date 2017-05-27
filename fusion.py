@@ -9,23 +9,24 @@ from operator import mul, itemgetter
 import logging
 
 import numpy as np
-from sklearn import svm
-from sklearn import naive_bayes
-from sklearn import neighbors
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import FeatureUnion
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.datasets import make_moons, make_circles, make_classification
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+from sklearn.linear_model import SGDClassifier
 
-
+import config
 from serialization import load_fusion_model
 from serialization import save_fusion_model
 
@@ -99,7 +100,7 @@ def _precisions_getter(tcs):
         return 1
 
 
-_basic_fusion_methods = [
+basic_fm = [
     BasicWeightedFusion(
         'target_occs',
         'a simple occurrence count of the target over all gps.'),
@@ -132,9 +133,6 @@ _basic_fusion_methods = [
         'same as above but scaled with precision',
         getter_gp=_gp_precisions_getter, getter_tcs=_precisions_getter),
 ]
-basic_fusion_methods = OrderedDict([
-    (_fm.name, _fm) for _fm in _basic_fusion_methods
-])
 
 
 def candidate_lists_to_gp_vectors(
@@ -177,6 +175,14 @@ def candidate_lists_to_gp_vectors(
     return np.array(vecs), np.array(labels)
 
 
+def vecs_labels_to_unique_vecs_ratio(vecs, labels):
+    vecs = [tuple(v) for v in vecs]
+    c = Counter(vecs)
+    p = Counter(vec for vec, l in zip(vecs, labels) if l)
+    ratio = [p[vec]/t for vec, t in c.items()]
+    return np.array(c.keys()), np.array(ratio)
+
+
 def gp_tcs_to_vecs(_, gp_tcs):
     targets = sorted(set(tc for tcs in gp_tcs for tc in tcs))
     vecs = []
@@ -186,7 +192,7 @@ def gp_tcs_to_vecs(_, gp_tcs):
     return targets, np.array(vecs)
 
 
-class FusionModel(object):
+class FusionModel(Fusion):
     def __init__(self, name, clf):
         self.name = name
         self.gps = None
@@ -208,8 +214,43 @@ class FusionModel(object):
         else:
             vecs, labels = candidate_lists_to_gp_vectors(
                 gps, gtps, target_candidate_lists)
+
+        if config.FUSION_CMERGE_VECS:
+            # Without merging, we typically have to deal with ~60K vecs.
+            # With merging ~5K vecs.
+            # This allows us to also train "slow" classifiers (such as KNN or
+            # SVMs despite quadratic runtime).
+            #
+            # The following massively speeds up training of classifiers by
+            # merging all vectors that occur multiple times (maybe even with
+            # different ground truth labels). Multi occurrence actually happens
+            # quite often when a single pattern is noisy and creates hundreds of
+            # target candidates that aren't predicted by any other pattern. All
+            # corresponding vectors will be the same (1 for this pattern, 0 for
+            # all others). Even if the actual ground truth target is among these
+            # candidates, the resulting vectors are mostly noise and convey very
+            # little information.
+            #
+            # We treat the merged label as True only if the ratio of True labels
+            # within all labels for the merged vector is above a certain
+            # threshold. A threshold of 20 % for example means that the fusion
+            # classifier might learn to falsely classify 4 wrong candidates as
+            # true label. Considering the heavily imbalanced training vector
+            # data (< 1/100 true positives) and the fact that we are actually
+            # using class probabilities for ranking later on, it seems
+            # reasonable that a small number of false positives is better than
+            # losing this indicator altogether.
+            # In accordance with this, experiments show that the effect is in
+            # general quite positive on all classifiers except for qda.
+            # Effects: In general positive on all classifiers but qda. Neural
+            # net gains recall@2 but loses minor recall@10.
+            vecs, ratios = vecs_labels_to_unique_vecs_ratio(vecs, labels)
+            labels = ratios >= config.FUSION_CMERGE_VECS_R
+
         logger.info(
-            'training fusion model %s on %d samples', self.name, len(vecs))
+            'training fusion model %s on %d samples (pos: %d, neg: %d)',
+            self.name, len(vecs), np.sum(labels), np.sum(labels < 1)
+        )
         self.clf.fit(vecs, labels)
         self.model = self.clf
         score = self.model.score(vecs, labels)
@@ -260,9 +301,7 @@ class FusionModel(object):
         return sorted(zip(targets, probs), key=itemgetter(1, 0), reverse=True)
 
 
-_fm = FusionModel
-
-_classifier_fusion_methods = [
+classifier_fm_slow = [
     # training & prediction takes long:
     FusionModel(
         "knn3",
@@ -271,6 +310,7 @@ _classifier_fusion_methods = [
     FusionModel(
         "knn5",
         KNeighborsClassifier(5)),
+    # training takes long:
     FusionModel(
         "svm_linear",
         SVC(kernel="linear", C=0.1, probability=True, class_weight='balanced')),
@@ -282,37 +322,53 @@ _classifier_fusion_methods = [
     # FusionModel(
     #     "gaussian_process",
     #     GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True)),
+]
+
+classifier_fm_fast = [
     FusionModel(
         "decision_tree",
-        DecisionTreeClassifier(max_depth=5)),
+        DecisionTreeClassifier(max_depth=5, class_weight='balanced')),
     FusionModel(
         "random_forest",
-        RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)),
+        RandomForestClassifier(
+            max_depth=5, n_estimators=10, max_features=10,
+            class_weight='balanced')),
     FusionModel(
-        "neural_net",
-        MLPClassifier(alpha=1)),
+        "gtb",
+        GradientBoostingClassifier()),
     FusionModel(
         "adaboost",
         AdaBoostClassifier()),
+    FusionModel(
+        "neural_net",
+        MLPClassifier(alpha=1)),
     FusionModel(
         "naive_bayes",
         GaussianNB()),
     FusionModel(
         "qda",
         QuadraticDiscriminantAnalysis()),
+    FusionModel(
+        "sgd_log",
+        SGDClassifier(loss='log', class_weight='balanced')),
+    FusionModel(
+        "sgd_mhuber",
+        SGDClassifier(loss='modified_huber', class_weight='balanced')),
 ]
-classifier_fusion_methods = OrderedDict([
-    (_fm.name, _fm) for _fm in _classifier_fusion_methods
-])
+
+classifier_fm = classifier_fm_slow + classifier_fm_fast
 
 # class RankSVMFusion(FusionModel):
 #     name = 'rank_svm'
 #
 # _fusion_methods['rank_svm'] = RankSVMFusion()
 
+
+
+# noinspection PyTypeChecker
 all_fusion_methods = OrderedDict(
-    basic_fusion_methods.items()
-    + classifier_fusion_methods.items()
+    (_fm.name, _fm) for _fm in
+    basic_fm + classifier_fm
 )
 
 
@@ -325,16 +381,26 @@ def get_fusion_methods_from_str(fms_arg=None):
     fml = []
     for s in fmsl:
         if s == 'basic':
-            fml.extend(basic_fusion_methods.values())
+            fml.extend(basic_fm)
         elif s == 'classifiers':
-            fml.extend(classifier_fusion_methods.values())
+            fml.extend(classifier_fm)
+        elif s == 'classifiers_fast':
+            fml.extend(classifier_fm_fast)
+        elif s == 'classifiers_slow':
+            fml.extend(classifier_fm_slow)
         else:
             try:
                 fml.append(all_fusion_methods[s])
             except KeyError:
                 logger.error(
                     'unknown fusion method: %s\navailable: %s',
-                    s, ['basic', 'classifiers'] + all_fusion_methods.keys()
+                    s,
+                    [
+                        'basic',
+                        'classifiers',
+                        'classifiers_fast',
+                        'classifiers_slow',
+                    ] + all_fusion_methods.keys()
                 )
                 raise
 
