@@ -222,7 +222,8 @@ class FusionModel(Fusion):
                 cv=GroupKFold(n_splits=3),
                 verbose=10,
                 refit=True,
-                n_jobs=-1,  # run in parallel
+                # run in parallel, but MLPClassifier seems to lock up :-/
+                n_jobs=1 if isinstance(clf, MLPClassifier) else -1,
                 pre_dispatch='n_jobs',
             )
         self.model = None  # None until trained, then clf.best_estimator_ or clf
@@ -293,8 +294,22 @@ class FusionModel(Fusion):
         if isinstance(self.clf, GridSearchCV):
             self.clf.fit(vecs, labels, groups=vgtps_idxs)
             logger.info(
-                'grid search results for %s:\n%s\nbest_params: %s',
-                self.name, self.clf.cv_results_, self.clf.best_params_)
+                'grid search results for %s:\nbest params: %s\nTop 10:\n%s',
+                self.name, self.clf.best_params_,
+                "\n".join([
+                    '%2d. mean score: %.3f (std: %.3f): %s' % (
+                        self.clf.cv_results_['rank_test_score'][i],
+                        self.clf.cv_results_['mean_test_score'][i],
+                        self.clf.cv_results_['std_test_score'][i],
+                        self.clf.cv_results_['params'][i]
+                    )
+                    for i in np.argsort(
+                        self.clf.cv_results_['rank_test_score'])[:11]
+                ])
+            )
+            logger.debug(
+                'grid search full results for %s:\n%s',
+                self.name, self.clf.cv_results_)
             self.model = self.clf.best_estimator_
         else:
             self.clf.fit(vecs, labels)
@@ -425,9 +440,10 @@ classifier_fm_fast = [
         "neural_net",
         MLPClassifier(alpha=1),
         param_grid={
-            'alpha': [0.0001, 0.001, 0.01, 0.1, 1],
+            'alpha': [1, 0.1, 0.01, 0.001, 0.0001],
             'hidden_layer_sizes': [
-                (10,), (20,), (50,), (100,), (10, 10), (20, 20), (50, 50)
+                (10,), (15,), (20,), (25,), (30,), (50,), (75,), (100,),
+                (10, 10), (15, 15), (20, 20), (25, 25), (50, 50), (100, 100),
             ],
         },
     ),
