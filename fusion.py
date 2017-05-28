@@ -5,11 +5,14 @@ from __future__ import print_function
 
 from collections import Counter
 from collections import OrderedDict
+from collections import defaultdict
 from operator import mul, itemgetter
 import logging
+import random
 
 import numpy as np
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import FeatureUnion
 from sklearn.pipeline import Pipeline
@@ -104,35 +107,43 @@ def _precisions_getter(tcs):
 basic_fm = [
     BasicWeightedFusion(
         'target_occs',
-        'a simple occurrence count of the target over all gps.'),
+        'a simple occurrence count of the target over all gps.',
+    ),
     BasicWeightedFusion(
         'scores',
         'sum of all gp scores for each returned target.',
-        getter_gp=_score_getter),
+        getter_gp=_score_getter,
+    ),
     BasicWeightedFusion(
         'f_measures',
         'sum of all gp f_measures for each returned target.',
-        getter_gp=_f_measure_getter),
+        getter_gp=_f_measure_getter,
+    ),
     BasicWeightedFusion(
         'gp_precisions',
         'sum of all gp precisions for each returned target.',
-        getter_gp=_gp_precisions_getter),
+        getter_gp=_gp_precisions_getter,
+    ),
     BasicWeightedFusion(
         'precisions',
         'sum of the actual precisions per gp in this prediction.',
-        getter_tcs=_precisions_getter),
+        getter_tcs=_precisions_getter,
+    ),
     BasicWeightedFusion(
         'scores_precisions',
         'same as above but scaled with precision',
-        getter_gp=_score_getter, getter_tcs=_precisions_getter),
+        getter_gp=_score_getter, getter_tcs=_precisions_getter,
+    ),
     BasicWeightedFusion(
         'f_measures_precisions',
         'same as above but scaled with precision',
-        getter_gp=_f_measure_getter, getter_tcs=_precisions_getter),
+        getter_gp=_f_measure_getter, getter_tcs=_precisions_getter,
+    ),
     BasicWeightedFusion(
         'gp_precisions_precisions',
         'same as above but scaled with precision',
-        getter_gp=_gp_precisions_getter, getter_tcs=_precisions_getter),
+        getter_gp=_gp_precisions_getter, getter_tcs=_precisions_getter,
+    ),
 ]
 
 
@@ -146,8 +157,9 @@ def prep_training(
     vecs = []
     vtc = []
     vgtp = []
+    vgtp_idxs = []
     labels = []
-    for gtp, gp_tcs in zip(gtps, target_candidate_lists):
+    for (gtp_idx, gtp), gp_tcs in zip(enumerate(gtps), target_candidate_lists):
         source, target = gtp
         targets = set(tc for tcs in gp_tcs for tc in tcs)
         for t in targets:
@@ -156,6 +168,7 @@ def prep_training(
             vecs.append(vec)
             vtc.append(t)
             vgtp.append(gtp)
+            vgtp_idxs.append(gtp_idx)
             labels.append(label)
 
     if print_vecs:
@@ -177,7 +190,7 @@ def prep_training(
                     pos[v], occ - pos[v], [1 if x else 0 for x in v]
                 )
 
-    return np.array(vecs), np.array(labels), vtc, vgtp
+    return np.array(vecs), np.array(labels), vtc, vgtp, vgtp_idxs
 
 
 def vecs_labels_to_unique_vecs_ratio(vecs, labels):
@@ -198,11 +211,21 @@ def gp_tcs_to_vecs(_, gp_tcs):
 
 
 class FusionModel(Fusion):
-    def __init__(self, name, clf):
+    def __init__(self, name, clf, param_grid=None):
         self.name = name
         self.gps = None
         self.clf = clf
-        self.model = None  # None until trained, then clf
+        if param_grid:
+            self.clf = GridSearchCV(
+                clf,
+                param_grid=param_grid,
+                cv=GroupKFold(n_splits=3),
+                verbose=10,
+                refit=True,
+                n_jobs=-1,  # run in parallel
+                pre_dispatch='n_jobs',
+            )
+        self.model = None  # None until trained, then clf.best_estimator_ or clf
         self._fuse_auto_load = True
         self.loaded = False
 
@@ -216,7 +239,7 @@ class FusionModel(Fusion):
             return
         if not training_tuple:
             training_tuple = prep_training(gps, gtps, target_candidate_lists)
-        vecs, labels, vtcs, vgtps = training_tuple
+        vecs, labels, vtcs, vgtps, vgtps_idxs = training_tuple
 
         if config.FUSION_CMERGE_VECS:
             # Without merging, we typically have to deal with ~60K vecs.
@@ -247,15 +270,35 @@ class FusionModel(Fusion):
             # general quite positive on all classifiers except for qda.
             # Effects: In general positive on all classifiers but qda. Neural
             # net gains recall@2 but loses minor recall@10.
-            vecs, ratios = vecs_labels_to_unique_vecs_ratio(vecs, labels)
+            vecs_, ratios = vecs_labels_to_unique_vecs_ratio(vecs, labels)
             labels = ratios >= config.FUSION_CMERGE_VECS_R
+
+            if isinstance(self.clf, GridSearchCV):
+                # merging vectors is problematic wrt. gtps which we use as
+                # "group" for GroupKFold. The following is a simplification to
+                # still have the above benefits, by assigning the full vector
+                # randomly to one of its gtps.
+                vec_gtpidxs = defaultdict(list)
+                for vec, gtpidx in zip(vecs, vgtps_idxs):
+                    vec_gtpidxs[tuple(vec)].append(gtpidx)
+                r = random.Random(42)
+                vgtps_idxs = [r.choice(vec_gtpidxs[tuple(v)]) for v in vecs_]
+
+            vecs = vecs_
 
         logger.info(
             'training fusion model %s on %d samples (pos: %d, neg: %d)',
             self.name, len(vecs), np.sum(labels), np.sum(labels < 1)
         )
-        self.clf.fit(vecs, labels)
-        self.model = self.clf
+        if isinstance(self.clf, GridSearchCV):
+            self.clf.fit(vecs, labels, groups=vgtps_idxs)
+            logger.info(
+                'grid search results for %s:\n%s\nbest_params: %s',
+                self.name, self.clf.cv_results_, self.clf.best_params_)
+            self.model = self.clf.best_estimator_
+        else:
+            self.clf.fit(vecs, labels)
+            self.model = self.clf
         score = self.model.score(vecs, labels)
         logger.info('score on training set: %.3f', score)
         self.save()
@@ -270,9 +313,12 @@ class FusionModel(Fusion):
             if self.gps is None:
                 self.gps = res.gps
             if self.gps == res.gps:
+                self.clf = res.clf
                 self.model = res.model
-                self.clf = self.model
                 self.loaded = True
+                logger.info(
+                    'loaded model %s with params: %s',
+                    self.name, self.model.get_params())
             else:
                 logger.warning(
                     'ignoring loading attempt for fusion model %s that seems '
@@ -308,55 +354,99 @@ classifier_fm_slow = [
     # training & prediction takes long:
     FusionModel(
         "knn3",
-        KNeighborsClassifier(3)),
+        KNeighborsClassifier(3),
+        param_grid={'weights': ['uniform', 'distance']},
+    ),
     # training & prediction takes long:
     FusionModel(
         "knn5",
-        KNeighborsClassifier(5)),
+        KNeighborsClassifier(5),
+        param_grid={'weights': ['uniform', 'distance']},
+    ),
     # training takes long:
     FusionModel(
         "svm_linear",
-        SVC(kernel="linear", C=0.1, probability=True, class_weight='balanced')),
+        SVC(kernel="linear", C=0.1, probability=True, class_weight='balanced'),
+        param_grid={
+            'C': np.logspace(-5, 15, 11, base=2),
+            'class_weight': ['balanced', None],
+        },
+    ),
     # training takes long:
     FusionModel(
         "svm_rbf",
-        SVC(gamma=2, C=1, probability=True, class_weight='balanced')),
+        SVC(gamma=2, C=1, probability=True, class_weight='balanced'),
+        param_grid={
+            'C': np.logspace(-5, 15, 11, base=2),
+            'gamma': np.logspace(-15, 3, 10, base=2),
+            'class_weight': ['balanced', None]
+        },
+    ),
     # # training out of ram:
     # FusionModel(
     #     "gaussian_process",
-    #     GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True)),
+    #     GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True),
+    # ),
 ]
 
 classifier_fm_fast = [
     FusionModel(
         "decision_tree",
-        DecisionTreeClassifier(max_depth=5, class_weight='balanced')),
+        DecisionTreeClassifier(max_depth=5, class_weight='balanced'),
+        param_grid={
+            'max_depth': [2, 5, 10, None],
+            'criterion': ['gini', 'entropy'],
+            'splitter': ['best', 'random'],
+            'max_features': [10, 'auto', 'log2', None],
+            'class_weight': ['balanced', None],
+        },
+    ),
     FusionModel(
         "random_forest",
         RandomForestClassifier(
             max_depth=5, n_estimators=10, max_features=10,
-            class_weight='balanced')),
+            class_weight='balanced'),
+        param_grid={
+            'max_depth': [2, 5, 10, None],
+            'n_estimators': [2, 5, 10, 15, 20, 25],
+            'max_features': [10, 'auto', 'log2', None],
+            'class_weight': ['balanced', None],
+        },
+    ),
     FusionModel(
         "gtb",
-        GradientBoostingClassifier()),
+        GradientBoostingClassifier(),
+    ),
     FusionModel(
         "adaboost",
-        AdaBoostClassifier()),
+        AdaBoostClassifier(),
+    ),
     FusionModel(
         "neural_net",
-        MLPClassifier(alpha=1)),
+        MLPClassifier(alpha=1),
+        param_grid={
+            'alpha': [0.0001, 0.001, 0.01, 0.1, 1],
+            'hidden_layer_sizes': [
+                (10,), (20,), (50,), (100,), (10, 10), (20, 20), (50, 50)
+            ],
+        },
+    ),
     FusionModel(
         "naive_bayes",
-        GaussianNB()),
+        GaussianNB(),
+    ),
     FusionModel(
         "qda",
-        QuadraticDiscriminantAnalysis()),
+        QuadraticDiscriminantAnalysis(),
+    ),
     FusionModel(
         "sgd_log",
-        SGDClassifier(loss='log', class_weight='balanced')),
+        SGDClassifier(loss='log', class_weight='balanced'),
+    ),
     FusionModel(
         "sgd_mhuber",
-        SGDClassifier(loss='modified_huber', class_weight='balanced')),
+        SGDClassifier(loss='modified_huber', class_weight='balanced'),
+    ),
 ]
 
 classifier_fm = classifier_fm_slow + classifier_fm_fast
