@@ -94,6 +94,11 @@ logger.info('init gp_learner')
 signal.signal(signal.SIGUSR1, log_mem_usage)
 
 
+def _init_workers():
+    # dummy method that makes workers load all import and config
+    pass
+
+
 def f_measure(precision, recall, beta=config.F_MEASURE_BETA):
     """Calculates the f1-measure from precision and recall."""
     if precision + recall <= 0:
@@ -1590,6 +1595,9 @@ def main(
     logging.info(u'encoding check: äöüß\U0001F385'.encode('utf-8'))  # convert
     print('encoding check: äöüß🎅')  # printing utf-8 byte string
     print(u'encoding check: äöüß\U0001F385')  # printing unicode string
+
+    # init workers
+    parallel_map(_init_workers, range(1000))
 
     timer_start = datetime.utcnow()
     main_start = timer_start
