@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import itertools
 import logging
 import random
 from collections import Counter
@@ -43,6 +44,7 @@ from sklearn.linear_model import SGDClassifier
 import config
 from serialization import load_fusion_model
 from serialization import save_fusion_model
+from utils import exception_stack_catcher
 
 logger = logging.getLogger(__name__)
 
@@ -280,6 +282,22 @@ def avg_precs(clf, vecs, labels, groups):
     return res
 
 
+@exception_stack_catcher
+def fit_score_map_clf_cv_helper(
+        split, train_vecs, train_labels, test_vecs, test_labels, test_groups,
+        clf, name, params_number, n_splits,
+):
+    logger.info(
+        '%s param %d: CV split %d/%d fitting...',
+        name, params_number, split, n_splits,
+    )
+    clf = clone(clf)
+    clf.fit(train_vecs, train_labels)
+    # calculate test-set avg precisions based on gtp groups
+    return avg_precs(clf, test_vecs, test_labels, test_groups)
+
+
+@exception_stack_catcher
 def score_map_clf_cv(enum_params, name, clf, vecs, labels, groups):
     """Calculates the mean avg precision score for a given classifier via CV.
 
@@ -287,26 +305,28 @@ def score_map_clf_cv(enum_params, name, clf, vecs, labels, groups):
     via cross validation.
     """
     params_number, params = enum_params
-    logger.debug('training classifier %s with params: %s', name, params)
+    logger.info('training classifier %s with params: %s', name, params)
     clf = clone(clf)
     clf.set_params(**params)
     n_splits = config.FUSION_PARAM_TUNING_CV_KFOLD
     splits = GroupKFold(n_splits).split(vecs, labels, groups=groups)
-    all_avg_precs = []
-    for split, (train_idxs, test_idxs) in enumerate(splits, 1):
-        logger.debug('%s CV split %d/%d fitting...', name, split, n_splits)
-        clf.fit(vecs[train_idxs], labels[train_idxs])
-        logger.debug('%s CV split %d/%d fitted.', name, split, n_splits)
+    par_cv = partial(
+        fit_score_map_clf_cv_helper,
+        clf=clf, name=name, params_number=params_number, n_splits=n_splits,
+    )
+    all_avg_precs = list(itertools.chain.from_iterable(
+        parallel_map(par_cv, *zip(*[
+            (
+                split,
+                vecs[train_idxs], labels[train_idxs],
+                vecs[test_idxs], labels[test_idxs], groups[test_idxs]
+            )
+            for split, (train_idxs, test_idxs) in enumerate(splits, 1)
+        ]))
+    ))
 
-        # calculate test-set avg precisions based on gtp groups
-        test_vecs = vecs[test_idxs]
-        test_labels = labels[test_idxs]
-        test_groups = groups[test_idxs]
-        all_avg_precs.extend(
-            avg_precs(clf, test_vecs, test_labels, test_groups))
-
-    if params_number % 10 == 0:
-        logger.info('completed crossval of param %d', params_number)
+    # if params_number % 10 == 0:
+    #     logger.info('%s: completed crossval of param %d', name, params_number)
     mean_avg_prec = np.mean(all_avg_precs)
     std_avg_prec = np.std(all_avg_precs)
     return mean_avg_prec, std_avg_prec
@@ -319,15 +339,15 @@ class FusionModel(Fusion):
         self.clf = Pipeline([
             # TODO: maybe use FunctionTransformer to get gp dims?
             # ('gp_weights', FunctionTransformer()),
-            ('scale', StandardScaler()),
-            ('norm', Normalizer()),
+            ('scale', None),
+            ('norm', None),
             (self.name, clf),
         ])
 
         # try with and without scaling and normalization
         pg = {
             'scale': [None, StandardScaler()],
-            'norm': [Normalizer(), None],
+            'norm': [None, Normalizer()],
         }
         if param_grid:
             # transform params to pipeline
@@ -410,8 +430,8 @@ class FusionModel(Fusion):
             # optimize MAP over splits on gtp groups
             param_candidates = list(self.param_grid)
             logger.info(
-                'performing grid search on %d parameter combinations',
-                len(param_candidates)
+                '%s: performing grid search on %d parameter combinations',
+                self.name, len(param_candidates)
             )
             score_func = partial(
                 score_map_clf_cv,
@@ -422,18 +442,19 @@ class FusionModel(Fusion):
             top_score_candidates = sorted(
                 zip(scores, param_candidates), key=itemgetter(0), reverse=True,
             )[:10]
+            self.grid_search_top_results = top_score_candidates[:10]
             _, best_params = top_score_candidates[0]
             logger.info(
-                'grid search results for %s:\nTop 10 params:\n%s',
+                '%s: grid search done, results for top 10 params:\n%s\n'
+                're-fitting on full train set with best params...',
                 self.name,
                 "\n".join([
-                    '%2d. mean score (MAP): %.3f (std: %.3f): %s' % (
+                    '  %2d. mean score (MAP): %.3f (std: %.3f): %s' % (
                         i, mean, std, params)
                     for i, ((mean, std), params) in enumerate(
                         top_score_candidates[:10], 1)
                 ])
             )
-            self.grid_search_top_results = top_score_candidates[:10]
             # refit classifier with best params
             self.clf.set_params(**best_params)
             self.clf.fit(vecs, labels)
@@ -552,8 +573,8 @@ classifier_fm_fast = [
         RandomForestClassifier(),
         param_grid={
             'max_depth': [2, 5, 10, None],
-            # 'n_estimators': [2, 5, 10, 15, 20, 25],
-            # 'max_features': [10, 'auto', 'log2', None],
+            'n_estimators': [2, 5, 10, 15, 20, 25],
+            'max_features': [10, 'auto', 'log2', None],
             'class_weight': ['balanced', None],
         },
     ),
@@ -567,14 +588,13 @@ classifier_fm_fast = [
     ),
     FusionModel(
         "neural_net",
-        MLPClassifier(max_iter=300),
+        MLPClassifier(max_iter=1000),
         param_grid={
-            'alpha': [1, 0.01, 0.0001],
-            # 'alpha': [1, 0.1, 0.01, 0.001, 0.0001],
+            'alpha': [0.0001, 0.001, 0.01, 0.1, 1],
             'hidden_layer_sizes': [
-                # (10,), (15,), (20,), (25,), (30,), (50,), (75,), (100,),
-                # (10, 10), (15, 15), (20, 20), (25, 25), (50, 50), (100, 100),
-                (10,), (50,), (100,), (10, 10), (100, 100),
+                (10,), (15,), (20,), (25,), (30,), (50,), (75,), (100,),
+                (10, 10), (15, 15), (20, 20), (25, 25), (50, 50), (100, 100),
+                (100,), (50,), (10,), (10, 10), (100, 100),
             ],
         },
     ),
@@ -588,24 +608,10 @@ classifier_fm_fast = [
     ),
     FusionModel(
         'sgd',
-        SGDClassifier(),
+        SGDClassifier(loss='log'),
         param_grid={
             'loss': ['log', 'modified_huber'],
             'class_weight': ['balanced', None]
-        },
-    ),
-    FusionModel(
-        'bgmm',
-        BayesianGaussianMixture(),
-        param_grid={
-            'n_components': range(1, 11)
-        },
-    ),
-    FusionModel(
-        'gmm',
-        GaussianMixture(),
-        param_grid={
-            'n_components': range(1, 11)
         },
     ),
 ]
