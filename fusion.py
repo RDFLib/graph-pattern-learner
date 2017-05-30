@@ -3,22 +3,32 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import logging
+import random
 from collections import Counter
 from collections import OrderedDict
 from collections import defaultdict
 from operator import mul, itemgetter
-import logging
-import random
+from functools import partial
 
 import numpy as np
+from scoop.futures import map as parallel_map
+from sklearn import clone
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_predict
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import FeatureUnion
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import FunctionTransformer
+from sklearn.preprocessing import Normalizer
 from sklearn.preprocessing import StandardScaler
+from sklearn.mixture import BayesianGaussianMixture
+from sklearn.mixture import GaussianMixture
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import LinearSVC
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF
@@ -152,6 +162,18 @@ def prep_training(
         print_vecs=False,
         warn_about_multiclass_vecs=False,
 ):
+    """Used to convert training's target candidates for all gtps into vectors.
+
+    Mainly out-sourced for efficiency reasons, as static for all trained fusion
+    methods.
+
+    :returns 5-tuple:
+        vecs (numpy array),
+        labels (numpy array boolean),
+        a list of one target candidate URIRef per vector,
+        a list of one gtp (the input) per vector,
+        groups (numpy array of gtp ids (integers) for GroupKFold)
+    """
     assert len(gtps) == len(target_candidate_lists)
     logger.info('transforming all candidate lists to vectors')
     vecs = []
@@ -189,44 +211,134 @@ def prep_training(
                     'pos: %d, neg: %d\n%s',
                     pos[v], occ - pos[v], [1 if x else 0 for x in v]
                 )
-
-    return np.array(vecs), np.array(labels), vtc, vgtp, vgtp_idxs
+    a = np.array
+    return a(vecs, dtype='f8'), a(labels), vtc, vgtp, a(vgtp_idxs)
 
 
 def vecs_labels_to_unique_vecs_ratio(vecs, labels):
+    """Groups identical training vectors and merges their labels into ratios.
+
+    Called in training of classifiers (see config.FUSION_CMERGE_VECS) and in
+    training of regressors.
+    """
     vecs = [tuple(v) for v in vecs]
     c = Counter(vecs)
     p = Counter(vec for vec, l in zip(vecs, labels) if l)
     ratio = [p[vec]/t for vec, t in c.items()]
-    return np.array(c.keys()), np.array(ratio)
+    return np.array(c.keys(), dtype='f8'), np.array(ratio)
 
 
 def gp_tcs_to_vecs(_, gp_tcs):
+    """Converts a list of target candidates per graph pattern into vectors.
+
+    Called at fusion time.
+    """
     targets = sorted(set(tc for tcs in gp_tcs for tc in tcs))
     vecs = []
     for t in targets:
         vec = tuple(t in tcs for tcs in gp_tcs)
         vecs.append(vec)
-    return targets, np.array(vecs)
+    return targets, np.array(vecs, dtype='f8')
+
+
+def avg_precs(clf, vecs, labels, groups):
+    """Calculates (test-set) avg precisions based on gtp groups.
+
+    Called during training.
+    """
+    res = []
+    gtp_ids = set(groups)
+    for gtp_id in gtp_ids:
+        g_mask = groups == gtp_id
+        g_test_vecs = vecs[g_mask]
+        g_test_labels = labels[g_mask]
+        assert np.sum(g_test_labels) <= 1 or config.FUSION_PARAM_TUNING, \
+            'expected only one true label per gtp (ground truth _pair_), ' \
+            'but got %s for gtp_id %d' % (np.sum(g_test_labels), gtp_id)
+
+        # get predictions for this group and sort labels by it
+        g_preds = clf.predict_proba(g_test_vecs)
+        g_scores = np.sum(g_preds * clf.classes_, axis=1)
+        ranked_labels = np.array([
+            l for l, p in
+            sorted(
+                zip(g_test_labels, g_scores),
+                key=itemgetter(1),  # intentionally ignore label
+                reverse=True,
+            )
+        ])
+        relevant = np.sum(ranked_labels)
+        assert relevant <= 1 or config.FUSION_PARAM_TUNING
+        if relevant > 0:
+            avg_prec = np.sum(
+                ranked_labels
+                / np.arange(1, len(ranked_labels) + 1)
+            ) / relevant
+        else:
+            avg_prec = 0
+        res.append(avg_prec)
+    return res
+
+
+def score_map_clf_cv(enum_params, name, clf, vecs, labels, groups):
+    """Calculates the mean avg precision score for a given classifier via CV.
+
+    Used at training time to find the MAP for the given classifier and params
+    via cross validation.
+    """
+    params_number, params = enum_params
+    logger.debug('training classifier %s with params: %s', name, params)
+    clf = clone(clf)
+    clf.set_params(**params)
+    n_splits = config.FUSION_PARAM_TUNING_CV_KFOLD
+    splits = GroupKFold(n_splits).split(vecs, labels, groups=groups)
+    all_avg_precs = []
+    for split, (train_idxs, test_idxs) in enumerate(splits, 1):
+        logger.debug('%s CV split %d/%d fitting...', name, split, n_splits)
+        clf.fit(vecs[train_idxs], labels[train_idxs])
+        logger.debug('%s CV split %d/%d fitted.', name, split, n_splits)
+
+        # calculate test-set avg precisions based on gtp groups
+        test_vecs = vecs[test_idxs]
+        test_labels = labels[test_idxs]
+        test_groups = groups[test_idxs]
+        all_avg_precs.extend(
+            avg_precs(clf, test_vecs, test_labels, test_groups))
+
+    if params_number % 10 == 0:
+        logger.info('completed crossval of param %d', params_number)
+    mean_avg_prec = np.mean(all_avg_precs)
+    std_avg_prec = np.std(all_avg_precs)
+    return mean_avg_prec, std_avg_prec
 
 
 class FusionModel(Fusion):
     def __init__(self, name, clf, param_grid=None):
         self.name = name
         self.gps = None
-        self.clf = clf
+        self.clf = Pipeline([
+            # TODO: maybe use FunctionTransformer to get gp dims?
+            # ('gp_weights', FunctionTransformer()),
+            ('scale', StandardScaler()),
+            ('norm', Normalizer()),
+            (self.name, clf),
+        ])
+
+        # try with and without scaling and normalization
+        pg = {
+            'scale': [None, StandardScaler()],
+            'norm': [Normalizer(), None],
+        }
         if param_grid:
-            self.clf = GridSearchCV(
-                clf,
-                param_grid=param_grid,
-                cv=GroupKFold(n_splits=3),
-                verbose=10,
-                refit=True,
-                # run in parallel, but MLPClassifier seems to lock up :-/
-                n_jobs=1 if isinstance(clf, MLPClassifier) else -1,
-                pre_dispatch='n_jobs',
-            )
-        self.model = None  # None until trained, then clf.best_estimator_ or clf
+            # transform params to pipeline
+            pg.update({
+                '%s__%s' % (self.name, k): v
+                for k, v in param_grid.items()
+            })
+        self.param_grid = ParameterGrid(pg)
+        self.grid_search_top_results = None
+
+        self.model = None  # None until trained, then best_estimator or clf
         self._fuse_auto_load = True
         self.loaded = False
 
@@ -240,7 +352,7 @@ class FusionModel(Fusion):
             return
         if not training_tuple:
             training_tuple = prep_training(gps, gtps, target_candidate_lists)
-        vecs, labels, vtcs, vgtps, vgtps_idxs = training_tuple
+        vecs, labels, vtcs, vgtps, groups = training_tuple
 
         if config.FUSION_CMERGE_VECS:
             # Without merging, we typically have to deal with ~60K vecs.
@@ -274,48 +386,63 @@ class FusionModel(Fusion):
             vecs_, ratios = vecs_labels_to_unique_vecs_ratio(vecs, labels)
             labels = ratios >= config.FUSION_CMERGE_VECS_R
 
-            if isinstance(self.clf, GridSearchCV):
+            if config.FUSION_PARAM_TUNING:
                 # merging vectors is problematic wrt. gtps which we use as
                 # "group" for GroupKFold. The following is a simplification to
                 # still have the above benefits, by assigning the full vector
                 # randomly to one of its gtps.
                 vec_gtpidxs = defaultdict(list)
-                for vec, gtpidx in zip(vecs, vgtps_idxs):
+                for vec, gtpidx in zip(vecs, groups):
                     vec_gtpidxs[tuple(vec)].append(gtpidx)
                 r = random.Random(42)
-                vgtps_idxs = [r.choice(vec_gtpidxs[tuple(v)]) for v in vecs_]
+                groups = np.array([
+                    r.choice(vec_gtpidxs[tuple(v)]) for v in vecs_])
 
             vecs = vecs_
 
         logger.info(
-            'training fusion model %s on %d samples (pos: %d, neg: %d)',
-            self.name, len(vecs), np.sum(labels), np.sum(labels < 1)
+            'training fusion model %s on %d samples, %d features: '
+            '(pos: %d, neg: %d)',
+            self.name, vecs.shape[0], vecs.shape[1],
+            np.sum(labels), np.sum(labels < 1)
         )
-        if isinstance(self.clf, GridSearchCV):
-            self.clf.fit(vecs, labels, groups=vgtps_idxs)
+        if config.FUSION_PARAM_TUNING:
+            # optimize MAP over splits on gtp groups
+            param_candidates = list(self.param_grid)
             logger.info(
-                'grid search results for %s:\nbest params: %s\nTop 10:\n%s',
-                self.name, self.clf.best_params_,
+                'performing grid search on %d parameter combinations',
+                len(param_candidates)
+            )
+            score_func = partial(
+                score_map_clf_cv,
+                clf=self.clf, name=self.name,
+                vecs=vecs, labels=labels, groups=groups,
+            )
+            scores = parallel_map(score_func, enumerate(param_candidates, 1))
+            top_score_candidates = sorted(
+                zip(scores, param_candidates), key=itemgetter(0), reverse=True,
+            )[:10]
+            _, best_params = top_score_candidates[0]
+            logger.info(
+                'grid search results for %s:\nTop 10 params:\n%s',
+                self.name,
                 "\n".join([
-                    '%2d. mean score: %.3f (std: %.3f): %s' % (
-                        self.clf.cv_results_['rank_test_score'][i],
-                        self.clf.cv_results_['mean_test_score'][i],
-                        self.clf.cv_results_['std_test_score'][i],
-                        self.clf.cv_results_['params'][i]
-                    )
-                    for i in np.argsort(
-                        self.clf.cv_results_['rank_test_score'])[:11]
+                    '%2d. mean score (MAP): %.3f (std: %.3f): %s' % (
+                        i, mean, std, params)
+                    for i, ((mean, std), params) in enumerate(
+                        top_score_candidates[:10], 1)
                 ])
             )
-            logger.debug(
-                'grid search full results for %s:\n%s',
-                self.name, self.clf.cv_results_)
-            self.model = self.clf.best_estimator_
+            self.grid_search_top_results = top_score_candidates[:10]
+            # refit classifier with best params
+            self.clf.set_params(**best_params)
+            self.clf.fit(vecs, labels)
+            self.model = self.clf
         else:
             self.clf.fit(vecs, labels)
             self.model = self.clf
-        score = self.model.score(vecs, labels)
-        logger.info('score on training set: %.3f', score)
+        score = np.mean(avg_precs(self.clf, vecs, labels, groups))
+        logger.info('MAP on training set: %.3f', score)
         self.save()
 
     def save(self, filename=None, overwrite=False):
@@ -330,6 +457,7 @@ class FusionModel(Fusion):
             if self.gps == res.gps:
                 self.clf = res.clf
                 self.model = res.model
+                self.grid_search_top_results = res.grid_search_top_results
                 self.loaded = True
                 logger.info(
                     'loaded model %s with params: %s',
@@ -342,8 +470,10 @@ class FusionModel(Fusion):
                 )
         return self.loaded
 
-    def fuse(self, gps, target_candidate_lists, targets_vecs=None):
-        if not self.model and self._fuse_auto_load:
+    def fuse(self, gps, target_candidate_lists, targets_vecs=None, clf=None):
+        if not clf:
+            clf = self.model
+        if not clf and self._fuse_auto_load:
             self.load()
             if not self.model:
                 logger.warning(
@@ -351,7 +481,7 @@ class FusionModel(Fusion):
                     'train first?',
                     self.name
                 )
-        if not self.model:
+        if not clf:
             return []
         self._fuse_auto_load = False
         if targets_vecs:
@@ -359,29 +489,30 @@ class FusionModel(Fusion):
         else:
             targets, vecs = gp_tcs_to_vecs(gps, target_candidate_lists)
         # pred = self.model.predict(vecs)
-        pred_class_probs = self.model.predict_proba(vecs)
+        pred_class_probs = clf.predict_proba(vecs)
         # our classes are boolean, [0,1], get probs for [1] by * and sum
-        probs = np.sum(pred_class_probs * self.model.classes_, axis=1)
-        return sorted(zip(targets, probs), key=itemgetter(1, 0), reverse=True)
+        probs = np.sum(pred_class_probs * clf.classes_, axis=1)
+        return sorted(zip(targets, probs), key=itemgetter(1), reverse=True)
 
 
 classifier_fm_slow = [
-    # training & prediction takes long:
+    # maybe improve performance by just changing n_neighbors after fitting?
+    # training & prediction takes long on unfused vecs:
     FusionModel(
-        "knn3",
-        KNeighborsClassifier(3),
+        'knn3',
+        KNeighborsClassifier(3, leaf_size=500, algorithm='ball_tree'),
         param_grid={'weights': ['uniform', 'distance']},
     ),
-    # training & prediction takes long:
+    # training & prediction takes long on unfused vecs:
     FusionModel(
         "knn5",
-        KNeighborsClassifier(5),
+        KNeighborsClassifier(5, leaf_size=500, algorithm='ball_tree'),
         param_grid={'weights': ['uniform', 'distance']},
     ),
     # training takes long:
     FusionModel(
         "svm_linear",
-        SVC(kernel="linear", C=0.1, probability=True, class_weight='balanced'),
+        SVC(kernel='linear', probability=True),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'class_weight': ['balanced', None],
@@ -390,7 +521,7 @@ classifier_fm_slow = [
     # training takes long:
     FusionModel(
         "svm_rbf",
-        SVC(gamma=2, C=1, probability=True, class_weight='balanced'),
+        SVC(kernel='rbf', probability=True),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'gamma': np.logspace(-15, 3, 10, base=2),
@@ -407,7 +538,7 @@ classifier_fm_slow = [
 classifier_fm_fast = [
     FusionModel(
         "decision_tree",
-        DecisionTreeClassifier(max_depth=5, class_weight='balanced'),
+        DecisionTreeClassifier(),
         param_grid={
             'max_depth': [2, 5, 10, None],
             'criterion': ['gini', 'entropy'],
@@ -418,13 +549,11 @@ classifier_fm_fast = [
     ),
     FusionModel(
         "random_forest",
-        RandomForestClassifier(
-            max_depth=5, n_estimators=10, max_features=10,
-            class_weight='balanced'),
+        RandomForestClassifier(),
         param_grid={
             'max_depth': [2, 5, 10, None],
-            'n_estimators': [2, 5, 10, 15, 20, 25],
-            'max_features': [10, 'auto', 'log2', None],
+            # 'n_estimators': [2, 5, 10, 15, 20, 25],
+            # 'max_features': [10, 'auto', 'log2', None],
             'class_weight': ['balanced', None],
         },
     ),
@@ -438,12 +567,14 @@ classifier_fm_fast = [
     ),
     FusionModel(
         "neural_net",
-        MLPClassifier(alpha=1),
+        MLPClassifier(max_iter=300),
         param_grid={
-            'alpha': [1, 0.1, 0.01, 0.001, 0.0001],
+            'alpha': [1, 0.01, 0.0001],
+            # 'alpha': [1, 0.1, 0.01, 0.001, 0.0001],
             'hidden_layer_sizes': [
-                (10,), (15,), (20,), (25,), (30,), (50,), (75,), (100,),
-                (10, 10), (15, 15), (20, 20), (25, 25), (50, 50), (100, 100),
+                # (10,), (15,), (20,), (25,), (30,), (50,), (75,), (100,),
+                # (10, 10), (15, 15), (20, 20), (25, 25), (50, 50), (100, 100),
+                (10,), (50,), (100,), (10, 10), (100, 100),
             ],
         },
     ),
@@ -456,21 +587,59 @@ classifier_fm_fast = [
         QuadraticDiscriminantAnalysis(),
     ),
     FusionModel(
-        "sgd_log",
-        SGDClassifier(loss='log', class_weight='balanced'),
+        'sgd',
+        SGDClassifier(),
+        param_grid={
+            'loss': ['log', 'modified_huber'],
+            'class_weight': ['balanced', None]
+        },
     ),
     FusionModel(
-        "sgd_mhuber",
-        SGDClassifier(loss='modified_huber', class_weight='balanced'),
+        'bgmm',
+        BayesianGaussianMixture(),
+        param_grid={
+            'n_components': range(1, 11)
+        },
+    ),
+    FusionModel(
+        'gmm',
+        GaussianMixture(),
+        param_grid={
+            'n_components': range(1, 11)
+        },
     ),
 ]
 
 classifier_fm = classifier_fm_slow + classifier_fm_fast
 
+
+# class FusionRegressionModel(FusionModel):
+#     pass
+#
+#
+# regression_fm = [
+#     FusionRegressionModel(
+#         'bgmm',
+#         BayesianGaussianMixture(),
+#         param_grid={
+#             'n_components': range(1, 11)
+#         },
+#     ),
+#     FusionRegressionModel(
+#         'gmm',
+#         GaussianMixture(),
+#         param_grid={
+#             'n_components': range(1, 11)
+#         },
+#     ),
+#     # KernelDensity...
+# ]
+
+
 # class RankSVMFusion(FusionModel):
 #     name = 'rank_svm'
 #
-# _fusion_methods['rank_svm'] = RankSVMFusion()
+#  _fusion_methods['rank_svm'] = RankSVMFusion()
 
 
 
