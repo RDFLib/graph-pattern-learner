@@ -1,4 +1,3 @@
-# encoding: utf-8
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -6,241 +5,41 @@ from __future__ import print_function
 import itertools
 import logging
 import random
-from collections import Counter
 from collections import OrderedDict
 from collections import defaultdict
-from operator import mul, itemgetter
 from functools import partial
+from operator import itemgetter
 
 import numpy as np
 from scoop.futures import map as parallel_map
 from sklearn import clone
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_val_predict
-from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import GroupKFold
-from sklearn.model_selection import ParameterGrid
-from sklearn.pipeline import FeatureUnion
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer
-from sklearn.preprocessing import Normalizer
-from sklearn.preprocessing import StandardScaler
-from sklearn.mixture import BayesianGaussianMixture
-from sklearn.mixture import GaussianMixture
-from sklearn.neural_network import MLPClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import LinearSVC
-from sklearn.svm import SVC
-from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.linear_model import SGDClassifier
+from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import ParameterGrid
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import Normalizer
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 
 import config
 from serialization import load_fusion_model
 from serialization import save_fusion_model
 from utils import exception_stack_catcher
 
+from .basic import Fusion
+from .vecs import gp_tcs_to_vecs
+from .vecs import prep_training
+from .vecs import vecs_labels_to_unique_vecs_ratio
+
 logger = logging.getLogger(__name__)
-
-
-class Fusion(object):
-    name = 'base_fusion'
-
-    def train(self, gps, gtps, target_candidate_lists, training_tuple=None):
-        pass
-
-    def save(self, filename=None):
-        pass
-
-    def load(self, filename=None):
-        pass
-
-    def fuse(self, gps, target_candidate_lists, targets_vecs=None):
-        raise NotImplementedError
-
-
-class BasicWeightedFusion(Fusion):
-    """Base for several naive weighted fusion methods.
-
-    The naive methods here are used to re-assemble all result lists returned by
-    each of the GraphPatterns in gps. Some of them use the fitness information
-    of the gps, some the actual lengths, some both.
-    """
-    def __init__(
-            self, name, desc,
-            getter_gp=lambda gp: 1,
-            getter_tcs=lambda gp: 1,
-            combine_getters=mul,
-    ):
-        super(BasicWeightedFusion, self).__init__()
-        self.name = name
-        self.desc = desc
-        self.getter_gp = getter_gp
-        self.getter_tcs = getter_tcs
-        self.combine = combine_getters
-
-    def fuse(self, gps, target_candidate_lists, targets_vecs=None):
-        c = Counter()
-        for gp, tcs in zip(gps, target_candidate_lists):
-            gpg = self.getter_gp(gp)
-            for t in tcs:
-                c[t] += self.combine(gpg, self.getter_tcs(tcs))
-        return c.most_common()
-
-
-def _score_getter(gp):
-    return gp.fitness.values.score
-
-
-def _f_measure_getter(gp):
-    return gp.fitness.values.f_measure
-
-
-def _gp_precisions_getter(gp):
-    if gp.fitness.values.avg_reslens > 0:
-        return 1 / gp.fitness.values.avg_reslens
-    else:
-        return 1
-
-
-def _precisions_getter(tcs):
-    if len(tcs) > 0:
-        return 1 / len(tcs)
-    else:
-        return 1
-
-
-basic_fm = [
-    BasicWeightedFusion(
-        'target_occs',
-        'a simple occurrence count of the target over all gps.',
-    ),
-    BasicWeightedFusion(
-        'scores',
-        'sum of all gp scores for each returned target.',
-        getter_gp=_score_getter,
-    ),
-    BasicWeightedFusion(
-        'f_measures',
-        'sum of all gp f_measures for each returned target.',
-        getter_gp=_f_measure_getter,
-    ),
-    BasicWeightedFusion(
-        'gp_precisions',
-        'sum of all gp precisions for each returned target.',
-        getter_gp=_gp_precisions_getter,
-    ),
-    BasicWeightedFusion(
-        'precisions',
-        'sum of the actual precisions per gp in this prediction.',
-        getter_tcs=_precisions_getter,
-    ),
-    BasicWeightedFusion(
-        'scores_precisions',
-        'same as above but scaled with precision',
-        getter_gp=_score_getter, getter_tcs=_precisions_getter,
-    ),
-    BasicWeightedFusion(
-        'f_measures_precisions',
-        'same as above but scaled with precision',
-        getter_gp=_f_measure_getter, getter_tcs=_precisions_getter,
-    ),
-    BasicWeightedFusion(
-        'gp_precisions_precisions',
-        'same as above but scaled with precision',
-        getter_gp=_gp_precisions_getter, getter_tcs=_precisions_getter,
-    ),
-]
-
-
-def prep_training(
-        _, gtps, target_candidate_lists,
-        print_vecs=False,
-        warn_about_multiclass_vecs=False,
-):
-    """Used to convert training's target candidates for all gtps into vectors.
-
-    Mainly out-sourced for efficiency reasons, as static for all trained fusion
-    methods.
-
-    :returns 5-tuple:
-        vecs (numpy array),
-        labels (numpy array boolean),
-        a list of one target candidate URIRef per vector,
-        a list of one gtp (the input) per vector,
-        groups (numpy array of gtp ids (integers) for GroupKFold)
-    """
-    assert len(gtps) == len(target_candidate_lists)
-    logger.info('transforming all candidate lists to vectors')
-    vecs = []
-    vtc = []
-    vgtp = []
-    vgtp_idxs = []
-    labels = []
-    for (gtp_idx, gtp), gp_tcs in zip(enumerate(gtps), target_candidate_lists):
-        source, target = gtp
-        targets = set(tc for tcs in gp_tcs for tc in tcs)
-        for t in targets:
-            vec = tuple(t in tcs for tcs in gp_tcs)
-            label = t == target
-            vecs.append(vec)
-            vtc.append(t)
-            vgtp.append(gtp)
-            vgtp_idxs.append(gtp_idx)
-            labels.append(label)
-
-    if print_vecs:
-        for v, l in zip(vecs, labels):
-            print('%s: %s' % (l, [1 if x else 0 for x in v]))
-
-    if warn_about_multiclass_vecs:
-        # warn about vectors occurring several times with different labels
-        c = Counter(vecs)
-        pos = Counter(vec for vec, l in zip(vecs, labels) if l)
-        logger.info('unique vectors: %d, (total: %d)', len(c), len(vecs))
-        for v, occ in c.most_common():
-            if occ == 1:
-                break
-            if 0 < pos[v] < occ:
-                logger.warning(
-                    'same vector shall be classified differently:'
-                    'pos: %d, neg: %d\n%s',
-                    pos[v], occ - pos[v], [1 if x else 0 for x in v]
-                )
-    a = np.array
-    return a(vecs, dtype='f8'), a(labels), vtc, vgtp, a(vgtp_idxs)
-
-
-def vecs_labels_to_unique_vecs_ratio(vecs, labels):
-    """Groups identical training vectors and merges their labels into ratios.
-
-    Called in training of classifiers (see config.FUSION_CMERGE_VECS) and in
-    training of regressors.
-    """
-    vecs = [tuple(v) for v in vecs]
-    c = Counter(vecs)
-    p = Counter(vec for vec, l in zip(vecs, labels) if l)
-    ratio = [p[vec]/t for vec, t in c.items()]
-    return np.array(c.keys(), dtype='f8'), np.array(ratio)
-
-
-def gp_tcs_to_vecs(_, gp_tcs):
-    """Converts a list of target candidates per graph pattern into vectors.
-
-    Called at fusion time.
-    """
-    targets = sorted(set(tc for tcs in gp_tcs for tc in tcs))
-    vecs = []
-    for t in targets:
-        vec = tuple(t in tcs for tcs in gp_tcs)
-        vecs.append(vec)
-    return targets, np.array(vecs, dtype='f8')
 
 
 def avg_precs(clf, vecs, labels, groups):
@@ -333,6 +132,7 @@ def score_map_clf_cv(enum_params, name, clf, vecs, labels, groups):
 
 
 class FusionModel(Fusion):
+    # TODO: option to balance training classes? (we have ~ 1/100 true/false)
     def __init__(self, name, clf, param_grid=None):
         self.name = name
         self.gps = None
@@ -648,77 +448,6 @@ classifier_fm = classifier_fm_slow + classifier_fm_fast
 #  _fusion_methods['rank_svm'] = RankSVMFusion()
 
 
-
-# noinspection PyTypeChecker
-all_fusion_methods = OrderedDict(
-    (_fm.name, _fm) for _fm in
-    basic_fm + classifier_fm
-)
+# https://github.com/ogrisel/notebooks/blob/master/Learning%20to%20Rank.ipynb
 
 
-def get_fusion_methods_from_str(fms_arg=None):
-    if not fms_arg:
-        return all_fusion_methods.values()
-
-    fmsl = [s.strip() for s in fms_arg.split(',')]
-    # replace with fusion methods, also expanding 'basic' and 'classifiers'
-    fml = []
-    for s in fmsl:
-        if s == 'basic':
-            fml.extend(basic_fm)
-        elif s == 'classifiers':
-            fml.extend(classifier_fm)
-        elif s == 'classifiers_fast':
-            fml.extend(classifier_fm_fast)
-        elif s == 'classifiers_slow':
-            fml.extend(classifier_fm_slow)
-        else:
-            try:
-                fml.append(all_fusion_methods[s])
-            except KeyError:
-                logger.error(
-                    'unknown fusion method: %s\navailable: %s',
-                    s,
-                    [
-                        'basic',
-                        'classifiers',
-                        'classifiers_fast',
-                        'classifiers_slow',
-                    ] + all_fusion_methods.keys()
-                )
-                raise
-
-    return fml
-
-
-def train_fusion_models(gps, gtps, target_candidate_lists, fusion_methods=None):
-    training_tuple = prep_training(gps, gtps, target_candidate_lists)
-    for fm in get_fusion_methods_from_str(fusion_methods):
-        fm.train(gps, gtps, target_candidate_lists, training_tuple)
-
-
-def fuse_prediction_results(gps, target_candidate_lists, fusion_methods=None):
-    """
-
-    :param gps: list of graph patterns.
-    :param target_candidate_lists: a list of target_candidate lists as
-        returned by predict_target_candidates() in same order as gps.
-    :param fusion_methods: None for all or a list of strings naming the fusion
-        methods to return.
-    :return: A dict like {method: ranked_res_list}, where ranked_res_list is a
-        list result list produced by method of (predicted_target, score) pairs
-        ordered decreasingly by score. For methods see above.
-    """
-    assert len(gps) == len(target_candidate_lists)
-
-    targets_vecs = gp_tcs_to_vecs(gps, target_candidate_lists)
-    res = OrderedDict()
-    for fm in get_fusion_methods_from_str(fusion_methods):
-        try:
-            res[fm.name] = fm.fuse(gps, target_candidate_lists, targets_vecs)
-        except NotImplementedError:
-            logger.warning(
-                'seems %s is not implemented yet, but called', fm.name
-            )
-            res[fm.name] = []
-    return res
