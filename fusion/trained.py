@@ -26,6 +26,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import FunctionTransformer
 from sklearn.preprocessing import Normalizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -97,6 +98,21 @@ def crossval_fm_scores(enum_params, fm, vecs, labels, groups):
     return mean_avg_prec, std_avg_prec
 
 
+def weight_multiplier(X, fm, weight):
+    gps = fm.gps
+    weights = np.array([getattr(gp.fitness.values, weight) for gp in gps])
+    return X * weights
+
+
+def weight_multiplier_gpprec(X, fm):
+    gps = fm.gps
+    avg_rl = lambda gp: gp.fitness.values.avg_reslens
+    avg_res_lens = np.array([
+        1 / avg_rl(gp) if avg_rl(gp) > 0 else 1
+        for gp in gps])
+    return X * avg_res_lens
+
+
 class FusionModel(Fusion):
     name = 'FusionModel'
     train_on_ratios = False  # e.g., False for classifiers, True for regrossors
@@ -106,8 +122,7 @@ class FusionModel(Fusion):
         self.gps = None
         self.parallelize_cv = parallelize_cv
         self.clf = Pipeline([
-            # TODO: maybe use FunctionTransformer to get gp dims?
-            # ('gp_weights', FunctionTransformer()),
+            ('gp_weights', None),
             ('scale', None),
             ('norm', None),
             (self.name, clf),
@@ -115,6 +130,18 @@ class FusionModel(Fusion):
 
         # try with and without scaling and normalization
         pg = {
+            'gp_weights': [
+                None,
+                FunctionTransformer(
+                    weight_multiplier,
+                    kw_args={'fm': self, 'weight': 'score'}),
+                FunctionTransformer(
+                    weight_multiplier,
+                    kw_args={'fm': self, 'weight': 'f_measure'}),
+                FunctionTransformer(
+                    weight_multiplier_gpprec,
+                    kw_args={'fm': self}),
+            ],
             'scale': [None, StandardScaler()],
             'norm': [None, Normalizer()],
         }
