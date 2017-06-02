@@ -17,20 +17,38 @@ from scoop.futures import map as parallel_map
 from sklearn import clone
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.ensemble import AdaBoostClassifier
+from sklearn.ensemble import AdaBoostRegressor
 from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.linear_model import ARDRegression
+from sklearn.linear_model import BayesianRidge
+from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import Lars
+from sklearn.linear_model import Lasso
+from sklearn.linear_model import LassoLars
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import Ridge
 from sklearn.linear_model import SGDClassifier
+from sklearn.linear_model import SGDRegressor
 from sklearn.model_selection import GroupKFold
 from sklearn.model_selection import ParameterGrid
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.neural_network import MLPClassifier
+from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.preprocessing import Normalizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeRegressor
 
 import config
 from fusion.ranksvm import RankSVM
@@ -376,15 +394,12 @@ classifier_fm_slow = [
     # maybe improve performance by just changing n_neighbors after fitting?
     # training & prediction takes long on unfused vecs:
     FusionModel(
-        'knn3',
-        KNeighborsClassifier(3, leaf_size=500, algorithm='ball_tree'),
-        param_grid={'weights': ['uniform', 'distance']},
-    ),
-    # training & prediction takes long on unfused vecs:
-    FusionModel(
-        "knn5",
-        KNeighborsClassifier(5, leaf_size=500, algorithm='ball_tree'),
-        param_grid={'weights': ['uniform', 'distance']},
+        "knn",
+        KNeighborsClassifier(leaf_size=500, algorithm='ball_tree'),
+        param_grid={
+            'n_neighbors': [1, 2, 3, 4, 5, 8, 16, 32],
+            'weights': ['uniform', 'distance']
+        },
     ),
     # training takes long:
     FusionModel(
@@ -472,6 +487,10 @@ classifier_fm_fast = [
         },
         # parallelize_cv=False,  # see env vars in run_create_bundle.sh
     ),
+    FusionModel(
+        'logistic_regression',
+        LogisticRegression(),
+    ),
 ]
 
 classifier_fm = classifier_fm_slow + classifier_fm_fast
@@ -486,23 +505,111 @@ class FusionRegressionModel(FusionModel):
         g_scores = clf.predict(vecs)
         return g_scores
 
-# regression_fm = [
-#     FusionRegressionModel(
-#         'bgmm',
-#         BayesianGaussianMixture(),
-#         param_grid={
-#             'n_components': range(1, 11)
-#         },
-#     ),
-#     FusionRegressionModel(
-#         'gmm',
-#         GaussianMixture(),
-#         param_grid={
-#             'n_components': range(1, 11)
-#         },
-#     ),
-#     # KernelDensity...
-# ]
+regression_fm = [
+    FusionRegressionModel(
+        'svr_linear',
+        SVR(kernel='linear'),
+        param_grid={
+            'C': np.logspace(-5, 15, 11, base=2),
+        },
+    ),
+    FusionRegressionModel(
+        'svr_rbf',
+        SVR(kernel='linear'),
+        param_grid={
+            'C': np.logspace(-5, 15, 11, base=2),
+            'gamma': np.logspace(-15, 3, 10, base=2),
+        },
+    ),
+    FusionRegressionModel(
+        "decision_tree_r",
+        DecisionTreeRegressor(),
+        param_grid={
+            'max_depth': [2, 5, 10, None],
+            'criterion': ['mse', 'mae'],
+            'splitter': ['best', 'random'],
+            'max_features': [10, 'auto', 'log2', None],
+        },
+    ),
+    FusionRegressionModel(
+        'ada_boost_r',
+        AdaBoostRegressor(),
+    ),
+    FusionRegressionModel(
+        'gradient_boosting_r',
+        GradientBoostingRegressor(),
+        param_grid={},
+    ),
+    FusionRegressionModel(
+        'random_forest_r',
+        RandomForestRegressor(),
+        param_grid={
+            'max_depth': [2, 5, 10, None],
+            'n_estimators': [2, 5, 10, 15, 20, 25],
+            'max_features': [10, 'auto', 'log2', None],
+        },
+    ),
+    FusionRegressionModel(
+        'kernel_ridge',
+        KernelRidge(),
+    ),
+    FusionRegressionModel(
+        'ard_r',
+        ARDRegression(),
+    ),
+    FusionRegressionModel(
+        'bayesian_ridge',
+        BayesianRidge(),
+    ),
+    FusionRegressionModel(
+        'elastic_net',
+        ElasticNet(),
+    ),
+    FusionRegressionModel(
+        'lars',
+        Lars(),
+    ),
+    FusionRegressionModel(
+        'lasso',
+        Lasso(),
+    ),
+    FusionRegressionModel(
+        'lasso_lars',
+        LassoLars(),
+    ),
+    FusionRegressionModel(
+        'linear_r',
+        LinearRegression(),
+    ),
+    FusionRegressionModel(
+        'ridge',
+        Ridge(),
+    ),
+    FusionRegressionModel(
+        'sgd_r',
+        SGDRegressor(),
+    ),
+    FusionRegressionModel(
+        'kneighbors_r',
+        KNeighborsRegressor(),
+        param_grid={
+            'n_neighbors': [1, 2, 4, 8, 16, 32],
+            'weights': ['uniform', 'distance']
+        },
+    ),
+    FusionRegressionModel(
+        'mlp_r',
+        MLPRegressor(),
+        param_grid={
+            'alpha': [0.0001, 0.001, 0.01, 0.1, 1],
+            'hidden_layer_sizes': [
+                (10,), (15,), (20,), (25,), (30,), (50,), (75,), (100,),
+                (10, 10), (15, 15), (20, 20), (25, 25), (50, 50), (100, 100),
+                (100,), (50,), (10,), (10, 10), (100, 100),
+            ],
+        },
+    ),
+]
 
 
 class RankSVMFusionModel(FusionModel):
