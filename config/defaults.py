@@ -88,10 +88,11 @@ MUTPB_FV_QUERY_LIMIT = 256  # SPARQL query limit for the top k instantiations
 MUTPB_SP = 0.05  # prob to simplify pattern (warning: can restrict exploration)
 
 # fusion of target candidates:
+FUSION_SAMPLES_PER_CLASS = 1000  # only use up to n training samples per class
 FUSION_CMERGE_VECS = False  # training fusion classifiers merges same vectors
 FUSION_CMERGE_VECS_R = 0.2  # label assumed true if above this ratio
 FUSION_PARAM_TUNING = True  # perform cross val grid search over parameters?
-FUSION_PARAM_TUNING_CV_KFOLD = 5  # k-fold cross validation for param search
+FUSION_PARAM_TUNING_CV_KFOLD = 3  # k-fold cross validation for param search
 
 # for import in helpers and __init__
 __all__ = [_v for _v in globals().keys() if _v.isupper()]

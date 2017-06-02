@@ -20,6 +20,7 @@ from .basic import basic_fm
 from .trained import classifier_fm
 from .trained import classifier_fm_fast
 from .trained import classifier_fm_slow
+from .trained import ranksvm_fm
 from .vecs import gp_tcs_to_vecs
 from .vecs import prep_training
 from .vecs import vecs_labels_to_unique_vecs_ratio
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 # noinspection PyTypeChecker
 all_fusion_methods = OrderedDict(
     (_fm.name, _fm) for _fm in
-    basic_fm + classifier_fm
+    basic_fm + classifier_fm + ranksvm_fm
 )
 
 

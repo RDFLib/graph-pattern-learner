@@ -30,6 +30,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
 import config
+from fusion.ranksvm import RankSVM
 from serialization import load_fusion_model
 from serialization import save_fusion_model
 from utils import exception_stack_catcher
@@ -42,87 +43,32 @@ from .vecs import vecs_labels_to_unique_vecs_ratio
 logger = logging.getLogger(__name__)
 
 
-def avg_precs(clf, vecs, labels, groups):
-    """Calculates (test-set) avg precisions based on gtp groups.
-
-    Called during training.
-    """
-    res = []
-    gtp_ids = set(groups)
-    for gtp_id in gtp_ids:
-        g_mask = groups == gtp_id
-        g_test_vecs = vecs[g_mask]
-        g_test_labels = labels[g_mask]
-        assert np.sum(g_test_labels) <= 1 or config.FUSION_PARAM_TUNING, \
-            'expected only one true label per gtp (ground truth _pair_), ' \
-            'but got %s for gtp_id %d' % (np.sum(g_test_labels), gtp_id)
-
-        # get predictions for this group and sort labels by it
-        g_preds = clf.predict_proba(g_test_vecs)
-        g_scores = np.sum(g_preds * clf.classes_, axis=1)
-        ranked_labels = np.array([
-            l for l, p in
-            sorted(
-                zip(g_test_labels, g_scores),
-                key=itemgetter(1),  # intentionally ignore label
-                reverse=True,
-            )
-        ])
-        relevant = np.sum(ranked_labels)
-        assert relevant <= 1 or config.FUSION_PARAM_TUNING
-        if relevant > 0:
-            avg_prec = np.sum(
-                ranked_labels
-                / np.arange(1, len(ranked_labels) + 1)
-            ) / relevant
-        else:
-            avg_prec = 0
-        res.append(avg_prec)
-    return res
-
-
 @exception_stack_catcher
-def fit_score_map_clf_cv_helper(
-        split, train_vecs, train_labels, test_vecs, test_labels, test_groups,
-        clf, name, params_number, n_splits,
-):
-    logger.info(
-        '%s param %d: CV split %d/%d fitting...',
-        name, params_number, split, n_splits,
-    )
-    clf = clone(clf)
-    clf.fit(train_vecs, train_labels)
-    # calculate test-set avg precisions based on gtp groups
-    return avg_precs(clf, test_vecs, test_labels, test_groups)
-
-
-@exception_stack_catcher
-def score_map_clf_cv(enum_params, name, clf, vecs, labels, groups):
+def crossval_fm_scores(enum_params, fm, vecs, labels, groups):
     """Calculates the mean avg precision score for a given classifier via CV.
 
     Used at training time to find the MAP for the given classifier and params
     via cross validation.
     """
+    assert isinstance(fm, FusionModel)
     params_number, params = enum_params
-    logger.info('training classifier %s with params: %s', name, params)
-    clf = clone(clf)
+    logger.info('training classifier %s with params: %s', fm.name, params)
+    clf = clone(fm.clf)
     clf.set_params(**params)
     n_splits = config.FUSION_PARAM_TUNING_CV_KFOLD
     splits = GroupKFold(n_splits).split(vecs, labels, groups=groups)
-    par_cv = partial(
-        fit_score_map_clf_cv_helper,
-        clf=clf, name=name, params_number=params_number, n_splits=n_splits,
-    )
-    all_avg_precs = list(itertools.chain.from_iterable(
-        parallel_map(par_cv, *zip(*[
-            (
-                split,
-                vecs[train_idxs], labels[train_idxs],
-                vecs[test_idxs], labels[test_idxs], groups[test_idxs]
-            )
-            for split, (train_idxs, test_idxs) in enumerate(splits, 1)
-        ]))
-    ))
+    all_avg_precs = []
+    for split, (train_idxs, test_idxs) in enumerate(splits, 1):
+        logger.info(
+            '%s param %d: CV split %d/%d fitting...',
+            fm.name, params_number, split, n_splits,
+        )
+        clf.fit(vecs[train_idxs], labels[train_idxs])
+        all_avg_precs.extend(
+            fm.scores(
+                vecs[test_idxs], labels[test_idxs], groups[test_idxs],
+                clf=clf
+            ))
 
     # if params_number % 10 == 0:
     #     logger.info('%s: completed crossval of param %d', name, params_number)
@@ -132,10 +78,13 @@ def score_map_clf_cv(enum_params, name, clf, vecs, labels, groups):
 
 
 class FusionModel(Fusion):
+    name = 'FusionModel'
+
     # TODO: option to balance training classes? (we have ~ 1/100 true/false)
-    def __init__(self, name, clf, param_grid=None):
+    def __init__(self, name, clf, param_grid=None, parallelize_cv=True):
         self.name = name
         self.gps = None
+        self.parallelize_cv = parallelize_cv
         self.clf = Pipeline([
             # TODO: maybe use FunctionTransformer to get gp dims?
             # ('gp_weights', FunctionTransformer()),
@@ -161,6 +110,74 @@ class FusionModel(Fusion):
         self.model = None  # None until trained, then best_estimator or clf
         self._fuse_auto_load = True
         self.loaded = False
+
+    def save(self, filename=None, overwrite=False):
+        if not self.loaded or overwrite:
+            save_fusion_model(filename, self, overwrite)
+
+    def load(self, filename=None):
+        res = load_fusion_model(filename, self)
+        if res:
+            if self.gps is None:
+                self.gps = res.gps
+            if self.gps == res.gps:
+                self.clf = res.clf
+                self.model = res.model
+                self.grid_search_top_results = res.grid_search_top_results
+                self.loaded = True
+                logger.info(
+                    'loaded model %s with params: %s',
+                    self.name, self.model.get_params())
+            else:
+                logger.warning(
+                    'ignoring loading attempt for fusion model %s that seems '
+                    'to have been trained on other gps',
+                    self.name
+                )
+        return self.loaded
+
+    def predict_scores(self, vecs, clf=None):
+        if clf is None:
+            clf = self.clf
+        g_preds = clf.predict_proba(vecs)
+        g_scores = np.sum(g_preds * clf.classes_, axis=1)
+        return g_scores
+
+    def scores(self, vecs, labels, groups, clf=None):
+        """Calculates (test-set) avg precisions based on gtp groups."""
+        if clf is None:
+            clf = self.clf
+        res = []
+        gtp_ids = set(groups)
+        for gtp_id in gtp_ids:
+            g_mask = groups == gtp_id
+            g_test_vecs = vecs[g_mask]
+            g_test_labels = labels[g_mask]
+            assert np.sum(g_test_labels) <= 1 or config.FUSION_PARAM_TUNING, \
+                'expected only one true label per gtp (ground truth _pair_), ' \
+                'but got %s for gtp_id %d' % (np.sum(g_test_labels), gtp_id)
+
+            # get predictions for this group and sort labels by it
+            g_scores = self.predict_scores(g_test_vecs, clf)
+            ranked_labels = np.array([
+                l for l, p in
+                sorted(
+                    zip(g_test_labels, g_scores),
+                    key=itemgetter(1),  # intentionally ignore label
+                    reverse=True,
+                )
+            ])
+            relevant = np.sum(ranked_labels)
+            assert relevant <= 1 or config.FUSION_PARAM_TUNING
+            if relevant > 0:
+                avg_prec = np.sum(
+                    ranked_labels
+                    / np.arange(1, len(ranked_labels) + 1)
+                ) / relevant
+            else:
+                avg_prec = 0
+            res.append(avg_prec)
+        return res
 
     def train(self, gps, gtps, target_candidate_lists, training_tuple=None):
         self.gps = gps
@@ -220,6 +237,18 @@ class FusionModel(Fusion):
 
             vecs = vecs_
 
+        if config.FUSION_SAMPLES_PER_CLASS > 0:
+            n = config.FUSION_SAMPLES_PER_CLASS
+            idxs_true = np.where(labels > 0)[0]
+            idxs_false = np.where(labels == 0)[0]
+            r = random.Random(42)
+            idxs_true = r.sample(idxs_true, min(len(idxs_true), n))
+            idxs_false = r.sample(idxs_false, min(len(idxs_false), n))
+            idxs = list(idxs_true) + list(idxs_false)
+            r.shuffle(idxs)
+            vecs, labels, groups = vecs[idxs], labels[idxs], groups[idxs]
+
+        # noinspection PyTypeChecker
         logger.info(
             'training fusion model %s on %d samples, %d features: '
             '(pos: %d, neg: %d)',
@@ -234,11 +263,11 @@ class FusionModel(Fusion):
                 self.name, len(param_candidates)
             )
             score_func = partial(
-                score_map_clf_cv,
-                clf=self.clf, name=self.name,
-                vecs=vecs, labels=labels, groups=groups,
+                crossval_fm_scores,
+                fm=self, vecs=vecs, labels=labels, groups=groups,
             )
-            scores = parallel_map(score_func, enumerate(param_candidates, 1))
+            map_ = parallel_map if self.parallelize_cv else map
+            scores = map_(score_func, enumerate(param_candidates, 1))
             top_score_candidates = sorted(
                 zip(scores, param_candidates), key=itemgetter(0), reverse=True,
             )[:10]
@@ -257,39 +286,12 @@ class FusionModel(Fusion):
             )
             # refit classifier with best params
             self.clf.set_params(**best_params)
-            self.clf.fit(vecs, labels)
-            self.model = self.clf
-        else:
-            self.clf.fit(vecs, labels)
-            self.model = self.clf
-        score = np.mean(avg_precs(self.clf, vecs, labels, groups))
+        self.clf.fit(vecs, labels)
+        self.model = self.clf
+
+        score = np.mean(self.scores(vecs, labels, groups))
         logger.info('MAP on training set: %.3f', score)
         self.save()
-
-    def save(self, filename=None, overwrite=False):
-        if not self.loaded or overwrite:
-            save_fusion_model(filename, self, overwrite)
-
-    def load(self, filename=None):
-        res = load_fusion_model(filename, self)
-        if res:
-            if self.gps is None:
-                self.gps = res.gps
-            if self.gps == res.gps:
-                self.clf = res.clf
-                self.model = res.model
-                self.grid_search_top_results = res.grid_search_top_results
-                self.loaded = True
-                logger.info(
-                    'loaded model %s with params: %s',
-                    self.name, self.model.get_params())
-            else:
-                logger.warning(
-                    'ignoring loading attempt for fusion model %s that seems '
-                    'to have been trained on other gps',
-                    self.name
-                )
-        return self.loaded
 
     def fuse(self, gps, target_candidate_lists, targets_vecs=None, clf=None):
         if not clf:
@@ -309,11 +311,8 @@ class FusionModel(Fusion):
             targets, vecs = targets_vecs
         else:
             targets, vecs = gp_tcs_to_vecs(gps, target_candidate_lists)
-        # pred = self.model.predict(vecs)
-        pred_class_probs = clf.predict_proba(vecs)
-        # our classes are boolean, [0,1], get probs for [1] by * and sum
-        probs = np.sum(pred_class_probs * clf.classes_, axis=1)
-        return sorted(zip(targets, probs), key=itemgetter(1), reverse=True)
+        scores = self.predict_scores(vecs)
+        return sorted(zip(targets, scores), key=itemgetter(1), reverse=True)
 
 
 classifier_fm_slow = [
@@ -397,6 +396,7 @@ classifier_fm_fast = [
                 (100,), (50,), (10,), (10, 10), (100, 100),
             ],
         },
+        # parallelize_cv=False,  # see env vars in run_create_bundle.sh
     ),
     FusionModel(
         "naive_bayes",
@@ -413,6 +413,7 @@ classifier_fm_fast = [
             'loss': ['log', 'modified_huber'],
             'class_weight': ['balanced', None]
         },
+        # parallelize_cv=False,  # see env vars in run_create_bundle.sh
     ),
 ]
 
@@ -442,12 +443,27 @@ classifier_fm = classifier_fm_slow + classifier_fm_fast
 # ]
 
 
-# class RankSVMFusion(FusionModel):
-#     name = 'rank_svm'
-#
-#  _fusion_methods['rank_svm'] = RankSVMFusion()
+class RankSVMFusionModel(FusionModel):
+    name = 'RankSVMFusion'
+
+    def predict_scores(self, vecs, clf=None):
+        if clf is None:
+            clf = self.clf
+        return clf.decision_function(vecs)
+
+ranksvm_fm = [
+    RankSVMFusionModel(
+        'rank_svm',
+        RankSVM(),
+        param_grid={
+            'C': np.logspace(-5, 15, 11, base=2),
+            'class_weight': ['balanced', None],
+        },
+    )
+]
 
 
+# TODO: more learning to rank methods?
 # https://github.com/ogrisel/notebooks/blob/master/Learning%20to%20Rank.ipynb
 
 
