@@ -31,8 +31,8 @@ def prep_training(
     assert len(gtps) == len(target_candidate_lists)
     logger.info('transforming all candidate lists to vectors')
     vecs = []
-    vtc = []
-    vgtp = []
+    vtcs = []
+    vgtps = []
     vgtp_idxs = []
     labels = []
     for (gtp_idx, gtp), gp_tcs in zip(enumerate(gtps), target_candidate_lists):
@@ -42,8 +42,8 @@ def prep_training(
             vec = tuple(t in tcs for tcs in gp_tcs)
             label = t == target
             vecs.append(vec)
-            vtc.append(t)
-            vgtp.append(gtp)
+            vtcs.append(t)
+            vgtps.append(gtp)
             vgtp_idxs.append(gtp_idx)
             labels.append(label)
 
@@ -66,7 +66,7 @@ def prep_training(
                     pos[v], occ - pos[v], [1 if x else 0 for x in v]
                 )
     a = np.array
-    return a(vecs, dtype='f8'), a(labels), vtc, vgtp, a(vgtp_idxs)
+    return a(vecs, dtype='f8'), a(labels), vtcs, vgtps, a(vgtp_idxs)
 
 
 def vecs_labels_to_unique_vecs_ratio(vecs, labels):

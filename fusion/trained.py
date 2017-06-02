@@ -7,6 +7,8 @@ import logging
 import random
 from collections import OrderedDict
 from collections import defaultdict
+from datetime import datetime
+from datetime import timedelta
 from functools import partial
 from operator import itemgetter
 
@@ -52,35 +54,53 @@ def crossval_fm_scores(enum_params, fm, vecs, labels, groups):
     """
     assert isinstance(fm, FusionModel)
     params_number, params = enum_params
-    logger.info('training classifier %s with params: %s', fm.name, params)
+    logger.debug(
+        '%s: param %d, starting CV for:\nparams: %s',
+        fm.name, params_number, params)
     clf = clone(fm.clf)
     clf.set_params(**params)
     n_splits = config.FUSION_PARAM_TUNING_CV_KFOLD
     splits = GroupKFold(n_splits).split(vecs, labels, groups=groups)
     all_avg_precs = []
     for split, (train_idxs, test_idxs) in enumerate(splits, 1):
-        logger.info(
-            '%s param %d: CV split %d/%d fitting...',
+        logger.debug(
+            '%s: param %d: CV split %d/%d fitting...',
             fm.name, params_number, split, n_splits,
         )
+        timer_start = datetime.utcnow()
         clf.fit(vecs[train_idxs], labels[train_idxs])
         all_avg_precs.extend(
             fm.scores(
                 vecs[test_idxs], labels[test_idxs], groups[test_idxs],
                 clf=clf
             ))
+        timer_diff = datetime.utcnow() - timer_start
+        _lvl = logging.DEBUG
+        if timer_diff > timedelta(minutes=1):
+            _lvl = logging.INFO
+        if timer_diff > timedelta(minutes=15):
+            _lvl = logging.WARNING
+        logger.log(
+            _lvl,
+            '%s: param %d: CV split %d/%d took: %s\nparams: %s',
+            fm.name, params_number, split, n_splits, timer_diff, params
+        )
 
     # if params_number % 10 == 0:
     #     logger.info('%s: completed crossval of param %d', name, params_number)
     mean_avg_prec = np.mean(all_avg_precs)
     std_avg_prec = np.std(all_avg_precs)
+    logger.info(
+        '%s: param %d: CV results:\nscore (MAP): %.3f (std: %.3f)\nparams: %s',
+        fm.name, params_number, mean_avg_prec, std_avg_prec, params
+    )
     return mean_avg_prec, std_avg_prec
 
 
 class FusionModel(Fusion):
     name = 'FusionModel'
+    train_on_ratios = False  # e.g., False for classifiers, True for regrossors
 
-    # TODO: option to balance training classes? (we have ~ 1/100 true/false)
     def __init__(self, name, clf, param_grid=None, parallelize_cv=True):
         self.name = name
         self.gps = None
@@ -179,19 +199,8 @@ class FusionModel(Fusion):
             res.append(avg_prec)
         return res
 
-    def train(self, gps, gtps, target_candidate_lists, training_tuple=None):
-        self.gps = gps
-        self.load()
-        if self.model:
-            logger.info(
-                're-using trained fusion model %s from previous exec',
-                self.name)
-            return
-        if not training_tuple:
-            training_tuple = prep_training(gps, gtps, target_candidate_lists)
-        vecs, labels, vtcs, vgtps, groups = training_tuple
-
-        if config.FUSION_CMERGE_VECS:
+    def preprocess_training_data(self, vecs, labels, groups):
+        if config.FUSION_CMERGE_VECS or self.train_on_ratios:
             # Without merging, we typically have to deal with ~60K vecs.
             # With merging ~5K vecs.
             # This allows us to also train "slow" classifiers (such as KNN or
@@ -237,6 +246,10 @@ class FusionModel(Fusion):
 
             vecs = vecs_
 
+            if self.train_on_ratios:
+                # for example for regressors
+                labels = ratios
+
         if config.FUSION_SAMPLES_PER_CLASS > 0:
             n = config.FUSION_SAMPLES_PER_CLASS
             idxs_true = np.where(labels > 0)[0]
@@ -248,12 +261,29 @@ class FusionModel(Fusion):
             r.shuffle(idxs)
             vecs, labels, groups = vecs[idxs], labels[idxs], groups[idxs]
 
+        return vecs, labels, groups
+
+    def train(self, gps, gtps, target_candidate_lists, training_tuple=None):
+        self.gps = gps
+        self.load()
+        if self.model:
+            logger.info(
+                're-using trained fusion model %s from previous exec',
+                self.name)
+            return
+        if not training_tuple:
+            training_tuple = prep_training(gps, gtps, target_candidate_lists)
+        vecs, labels, vtcs, vgtps, groups = training_tuple
+
+        vecs, labels, groups = self.preprocess_training_data(
+            vecs, labels, groups)
+
         # noinspection PyTypeChecker
         logger.info(
-            'training fusion model %s on %d samples, %d features: '
+            '%s: training fusion model on %d samples, %d features: '
             '(pos: %d, neg: %d)',
             self.name, vecs.shape[0], vecs.shape[1],
-            np.sum(labels), np.sum(labels < 1)
+            np.sum(labels > 0), np.sum(labels == 0)
         )
         if config.FUSION_PARAM_TUNING:
             # optimize MAP over splits on gtp groups
@@ -290,7 +320,7 @@ class FusionModel(Fusion):
         self.model = self.clf
 
         score = np.mean(self.scores(vecs, labels, groups))
-        logger.info('MAP on training set: %.3f', score)
+        logger.info('%s: MAP on training set: %.3f', self.name, score)
         self.save()
 
     def fuse(self, gps, target_candidate_lists, targets_vecs=None, clf=None):
@@ -420,10 +450,15 @@ classifier_fm_fast = [
 classifier_fm = classifier_fm_slow + classifier_fm_fast
 
 
-# class FusionRegressionModel(FusionModel):
-#     pass
-#
-#
+class FusionRegressionModel(FusionModel):
+    train_on_ratios = True
+
+    def predict_scores(self, vecs, clf=None):
+        if clf is None:
+            clf = self.clf
+        g_scores = clf.predict(vecs)
+        return g_scores
+
 # regression_fm = [
 #     FusionRegressionModel(
 #         'bgmm',
