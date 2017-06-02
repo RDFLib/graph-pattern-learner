@@ -291,7 +291,7 @@ time_echo "training end: " | tee >> "$bundle_log"
 
 time_echo "predict train set start: " | tee >> "$bundle_log"
 logfile="$(file_roll "$bundle/predict_train.log" gz)"
-python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='train_set' "$@" 2>&1 | tee -i >(gzip > "$logfile")
+MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='train_set' "$@" 2>&1 | tee -i >(gzip > "$logfile")
 time_echo "predict train set end: " | tee >> "$bundle_log"
 
 time_echo "predict test set start: " | tee >> "$bundle_log"
