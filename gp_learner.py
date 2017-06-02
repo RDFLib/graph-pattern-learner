@@ -94,7 +94,7 @@ logger.info('init gp_learner')
 signal.signal(signal.SIGUSR1, log_mem_usage)
 
 
-def _init_workers():
+def _init_workers(_):
     # dummy method that makes workers load all import and config
     pass
 
