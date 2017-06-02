@@ -17,7 +17,7 @@ of RankSVM using stochastic gradient descent methdos.
 import itertools
 import numpy as np
 
-from sklearn import svm, linear_model, cross_validation
+from sklearn import svm, linear_model, model_selection
 
 
 def transform_pairwise(X, y):
@@ -131,7 +131,7 @@ if __name__ == '__main__':
     y = np.arctan(y) # add non-linearities
     y += .1 * noise  # add noise
     Y = np.c_[y, np.mod(np.arange(n_samples), 5)]  # add query fake id
-    cv = cross_validation.KFold(n_samples, 5)
+    cv = model_selection.KFold(n_samples, 5)
     train, test = iter(cv).next()
 
     # make a simple plot out of it
