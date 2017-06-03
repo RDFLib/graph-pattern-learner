@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # noinspection PyTypeChecker
 all_fusion_methods = OrderedDict(
     (_fm.name, _fm) for _fm in
-    basic_fm + classifier_fm + ranksvm_fm
+    basic_fm + classifier_fm + regression_fm + ranksvm_fm
 )
 
 
