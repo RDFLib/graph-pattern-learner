@@ -65,53 +65,89 @@ logger = logging.getLogger(__name__)
 
 
 @exception_stack_catcher
-def crossval_fm_scores(enum_params, fm, vecs, labels, groups):
+def crossval_fm_score_single_split(
+        split_tt_idxs,
+        fm,
+        clf,
+        params,
+        params_number,
+        n_params,
+        n_splits,
+        vecs,
+        labels,
+        groups,
+):
+    split, (train_idxs, test_idxs) = split_tt_idxs
+    # clf = clone(clf)
+    logger.debug(
+        '%s: param %d/%d: CV split %d/%d fitting...',
+        fm.name, params_number, n_params, split, n_splits,
+    )
+    timer_start = datetime.utcnow()
+    clf.fit(vecs[train_idxs], labels[train_idxs])
+    res = fm.scores(
+            vecs[test_idxs], labels[test_idxs], groups[test_idxs],
+            clf=clf
+    )
+    timer_diff = datetime.utcnow() - timer_start
+    _lvl = logging.DEBUG
+    if timer_diff > timedelta(minutes=1):
+        _lvl = logging.INFO
+    if timer_diff > timedelta(minutes=15):
+        _lvl = logging.WARNING
+    logger.log(
+        _lvl,
+        '%s: param %d/%d: CV split %d/%d took long: %s\nparams: %s',
+        fm.name, params_number, n_params, split, n_splits, timer_diff, params
+    )
+    return timer_diff, res
+
+
+@exception_stack_catcher
+def crossval_fm_scores(numbered_params, fm, vecs, labels, groups, n_params):
     """Calculates the mean avg precision score for a given classifier via CV.
 
     Used at training time to find the MAP for the given classifier and params
     via cross validation.
     """
     assert isinstance(fm, FusionModel)
-    params_number, params = enum_params
+    params_number, params = numbered_params
     logger.debug(
-        '%s: param %d, starting CV for:\nparams: %s',
-        fm.name, params_number, params)
+        '%s: param %d/%d, starting CV for:\nparams: %s',
+        fm.name, params_number, n_params, params)
     clf = clone(fm.clf)
     clf.set_params(**params)
     n_splits = config.FUSION_PARAM_TUNING_CV_KFOLD
     splits = GroupKFold(n_splits).split(vecs, labels, groups=groups)
-    all_avg_precs = []
-    for split, (train_idxs, test_idxs) in enumerate(splits, 1):
-        logger.debug(
-            '%s: param %d: CV split %d/%d fitting...',
-            fm.name, params_number, split, n_splits,
-        )
-        timer_start = datetime.utcnow()
-        clf.fit(vecs[train_idxs], labels[train_idxs])
-        all_avg_precs.extend(
-            fm.scores(
-                vecs[test_idxs], labels[test_idxs], groups[test_idxs],
-                clf=clf
-            ))
-        timer_diff = datetime.utcnow() - timer_start
-        _lvl = logging.DEBUG
-        if timer_diff > timedelta(minutes=1):
-            _lvl = logging.INFO
-        if timer_diff > timedelta(minutes=15):
-            _lvl = logging.WARNING
-        logger.log(
-            _lvl,
-            '%s: param %d: CV split %d/%d took: %s\nparams: %s',
-            fm.name, params_number, split, n_splits, timer_diff, params
-        )
+
+    map_ = parallel_map if fm.parallelize_cv else map
+    single_split_func = partial(
+        crossval_fm_score_single_split,
+        fm=fm,
+        clf=clf,
+        params=params,
+        params_number=params_number,
+        n_params=n_params,
+        n_splits=n_splits,
+        vecs=vecs,
+        labels=labels,
+        groups=groups,
+    )
+    cv_results = map_(single_split_func, enumerate(splits, 1))
+
+    training_times, all_avg_precs = zip(*cv_results)
+    all_avg_precs = list(itertools.chain.from_iterable(all_avg_precs))
+    t = sum(training_times, timedelta())
 
     # if params_number % 10 == 0:
     #     logger.info('%s: completed crossval of param %d', name, params_number)
     mean_avg_prec = np.mean(all_avg_precs)
     std_avg_prec = np.std(all_avg_precs)
     logger.info(
-        '%s: param %d: CV results:\nscore (MAP): %.3f (std: %.3f)\nparams: %s',
-        fm.name, params_number, mean_avg_prec, std_avg_prec, params
+        '%s: param %d/%d:\n'
+        'params: %s\n'
+        'CV results: score (MAP): %.3f (std: %.3f), training time: %s',
+        fm.name, params_number, n_params, params, mean_avg_prec, std_avg_prec, t
     )
     return mean_avg_prec, std_avg_prec
 
@@ -337,12 +373,15 @@ class FusionModel(Fusion):
                 '%s: performing grid search on %d parameter combinations',
                 self.name, len(param_candidates)
             )
+
             score_func = partial(
                 crossval_fm_scores,
                 fm=self, vecs=vecs, labels=labels, groups=groups,
+                n_params=len(param_candidates),
             )
             map_ = parallel_map if self.parallelize_cv else map
             scores = map_(score_func, enumerate(param_candidates, 1))
+
             top_score_candidates = sorted(
                 zip(scores, param_candidates), key=itemgetter(0), reverse=True,
             )[:10]
@@ -404,7 +443,7 @@ classifier_fm_slow = [
     # training takes long:
     FusionModel(
         "svm_linear",
-        SVC(kernel='linear', probability=True),
+        SVC(kernel='linear', probability=True, cache_size=20000),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'class_weight': ['balanced', None],
@@ -413,7 +452,7 @@ classifier_fm_slow = [
     # training takes long:
     FusionModel(
         "svm_rbf",
-        SVC(kernel='rbf', probability=True),
+        SVC(kernel='rbf', probability=True, cache_size=20000),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'gamma': np.logspace(-15, 3, 10, base=2),
@@ -508,14 +547,14 @@ class FusionRegressionModel(FusionModel):
 regression_fm = [
     FusionRegressionModel(
         'svr_linear',
-        SVR(kernel='linear'),
+        SVR(kernel='linear', cache_size=20000),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
         },
     ),
     FusionRegressionModel(
         'svr_rbf',
-        SVR(kernel='linear'),
+        SVR(kernel='linear', cache_size=20000),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'gamma': np.logspace(-15, 3, 10, base=2),
