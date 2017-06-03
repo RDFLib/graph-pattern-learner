@@ -5,6 +5,7 @@ from __future__ import print_function
 import itertools
 import logging
 import random
+import warnings
 from collections import OrderedDict
 from collections import defaultdict
 from datetime import datetime
@@ -22,6 +23,7 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.linear_model import ARDRegression
 from sklearn.linear_model import BayesianRidge
@@ -84,21 +86,33 @@ def crossval_fm_score_single_split(
         fm.name, params_number, n_params, split, n_splits,
     )
     timer_start = datetime.utcnow()
-    clf.fit(vecs[train_idxs], labels[train_idxs])
+    limit_reached = False
+    with warnings.catch_warnings(record=True) as w:
+        clf.fit(vecs[train_idxs], labels[train_idxs])
+        for warning in w:
+            if issubclass(warning.category, ConvergenceWarning):
+                limit_reached = True
     res = fm.scores(
             vecs[test_idxs], labels[test_idxs], groups[test_idxs],
             clf=clf
     )
     timer_diff = datetime.utcnow() - timer_start
     _lvl = logging.DEBUG
-    if timer_diff > timedelta(minutes=1):
+    reasons = []
+    if timer_diff > timedelta(minutes=5):
         _lvl = logging.INFO
+        reasons = ['took long']
     if timer_diff > timedelta(minutes=15):
         _lvl = logging.WARNING
+        reasons = ['took long']
+    if limit_reached:
+        _lvl = logging.WARNING
+        reasons.append('reached training iteration limit before convergence')
+    r = ' and '.join(reasons)
     logger.log(
         _lvl,
-        '%s: param %d/%d: CV split %d/%d took long: %s\nparams: %s',
-        fm.name, params_number, n_params, split, n_splits, timer_diff, params
+        '%s: param %d/%d: CV split %d/%d %s: %s\nparams: %s',
+        fm.name, params_number, n_params, split, n_splits, r, timer_diff, params
     )
     return timer_diff, res
 
@@ -434,7 +448,7 @@ classifier_fm_slow = [
     # training & prediction takes long on unfused vecs:
     FusionModel(
         "knn",
-        KNeighborsClassifier(leaf_size=500, algorithm='ball_tree'),
+        KNeighborsClassifier(leaf_size=200),
         param_grid={
             'n_neighbors': [1, 2, 3, 4, 5, 8, 16, 32],
             'weights': ['uniform', 'distance']
@@ -443,7 +457,11 @@ classifier_fm_slow = [
     # training takes long:
     FusionModel(
         "svm_linear",
-        SVC(kernel='linear', probability=True, cache_size=20000),
+        SVC(
+            kernel='linear',
+            probability=True,
+            max_iter=config.FUSION_SVM_MAX_ITER,
+        ),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'class_weight': ['balanced', None],
@@ -452,7 +470,11 @@ classifier_fm_slow = [
     # training takes long:
     FusionModel(
         "svm_rbf",
-        SVC(kernel='rbf', probability=True, cache_size=20000),
+        SVC(
+            kernel='rbf',
+            probability=True,
+            max_iter=config.FUSION_SVM_MAX_ITER,
+        ),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'gamma': np.logspace(-15, 3, 10, base=2),
@@ -546,15 +568,23 @@ class FusionRegressionModel(FusionModel):
 
 regression_fm = [
     FusionRegressionModel(
+        'kneighbors_r',
+        KNeighborsRegressor(leaf_size=200),
+        param_grid={
+            'n_neighbors': [1, 2, 4, 8, 16, 32],
+            'weights': ['uniform', 'distance']
+        },
+    ),
+    FusionRegressionModel(
         'svr_linear',
-        SVR(kernel='linear', cache_size=20000),
+        SVR(kernel='linear', max_iter=config.FUSION_SVM_MAX_ITER),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
         },
     ),
     FusionRegressionModel(
         'svr_rbf',
-        SVR(kernel='linear', cache_size=20000),
+        SVR(kernel='linear', max_iter=config.FUSION_SVM_MAX_ITER),
         param_grid={
             'C': np.logspace(-5, 15, 11, base=2),
             'gamma': np.logspace(-15, 3, 10, base=2),
@@ -627,14 +657,6 @@ regression_fm = [
     FusionRegressionModel(
         'sgd_r',
         SGDRegressor(),
-    ),
-    FusionRegressionModel(
-        'kneighbors_r',
-        KNeighborsRegressor(),
-        param_grid={
-            'n_neighbors': [1, 2, 4, 8, 16, 32],
-            'weights': ['uniform', 'distance']
-        },
     ),
     FusionRegressionModel(
         'mlp_r',

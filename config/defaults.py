@@ -91,6 +91,7 @@ MUTPB_SP = 0.05  # prob to simplify pattern (warning: can restrict exploration)
 FUSION_SAMPLES_PER_CLASS = 500  # only use up to n training samples per class
 FUSION_CMERGE_VECS = False  # training fusion classifiers merges same vectors
 FUSION_CMERGE_VECS_R = 0.2  # label assumed true if above this ratio
+FUSION_SVM_MAX_ITER = 10000000  # training iteration limit for SVMs
 FUSION_PARAM_TUNING = True  # perform cross val grid search over parameters?
 FUSION_PARAM_TUNING_CV_KFOLD = 3  # k-fold cross validation for param search
 
