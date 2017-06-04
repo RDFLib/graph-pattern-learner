@@ -269,9 +269,9 @@ processes: $PROCESSES
 sparql_endpoint: $SPARQL
 bundle: $bundle
 other: $@
-" | tee >> "$bundle_log"
+" | tee -a "$bundle_log"
 
-time_echo "start: " | tee >> "$bundle_log"
+time_echo "start: " | tee -a "$bundle_log"
 
 # if running on slurm cluster, write logs locally and only write back on error (see end)
 if [[ -n "$SLURM_JOB_ID" && -n "$TMPDIR" ]] ; then
@@ -284,31 +284,31 @@ fi
 export PYTHONIOENCODING=utf-8
 
 
-time_echo "training start: " | tee >> "$bundle_log"
+time_echo "training start: " | tee -a "$bundle_log"
 logfile="$(file_roll "$bundle/train.log" gz)"
 python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='' "$@" 2>&1 | tee >( gzip > "$logfile")
-time_echo "training end: " | tee >> "$bundle_log"
+time_echo "training end: " | tee -a "$bundle_log"
 
-time_echo "predict train set start: " | tee >> "$bundle_log"
+time_echo "predict train set start: " | tee -a "$bundle_log"
 logfile="$(file_roll "$bundle/predict_train.log" gz)"
 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='train_set' "$@" 2>&1 | tee -i >(gzip > "$logfile")
-time_echo "predict train set end: " | tee >> "$bundle_log"
+time_echo "predict train set end: " | tee -a "$bundle_log"
 
-time_echo "predict test set start: " | tee >> "$bundle_log"
+time_echo "predict test set start: " | tee -a "$bundle_log"
 logfile="$(file_roll "$bundle/predict_test.log" gz)"
 python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='test_set' "$@" 2>&1 | tee -i >(gzip > "$logfile")
-time_echo "predict test set end: " | tee >> "$bundle_log"
+time_echo "predict test set end: " | tee -a "$bundle_log"
 
 if [[ $VISUALISE = true ]] ; then
-    time_echo "preparing visualise start: " | tee >> "$bundle_log"
+    time_echo "preparing visualise start: " | tee -a "$bundle_log"
     python visualise/prepare.py -i "$bundle/results" -o "$bundle/visualise"
-    time_echo "preparing visualise end: " | tee >> "$bundle_log"
+    time_echo "preparing visualise end: " | tee -a "$bundle_log"
 fi
 
 
 echo "done, bundle size:"
 du -sh "$bundle"
 
-time_echo "end: " | tee >> "$bundle_log"
+time_echo "end: " | tee -a "$bundle_log"
 
 
