@@ -450,7 +450,7 @@ classifier_fm_slow = [
         "knn",
         KNeighborsClassifier(leaf_size=200),
         param_grid={
-            'n_neighbors': [1, 2, 3, 4, 5, 8, 16, 32],
+            'n_neighbors': [1, 2, 3, 4, 5, 8, 16, 32, 64, 128],
             'weights': ['uniform', 'distance']
         },
     ),
@@ -571,7 +571,7 @@ regression_fm = [
         'kneighbors_r',
         KNeighborsRegressor(leaf_size=200),
         param_grid={
-            'n_neighbors': [1, 2, 4, 8, 16, 32],
+            'n_neighbors': [1, 2, 4, 8, 16, 32, 64, 128],
             'weights': ['uniform', 'distance']
         },
     ),
