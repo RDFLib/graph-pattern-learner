@@ -1560,13 +1560,20 @@ def evaluate_predictions(
         print("\nIndices for method %s:\n'%s': %s" % (method, method, indices))
         avg_idx = np.average([i for i in indices if i >= 0])
         median_idx = np.median([i for i in indices if i >= 0])
+        ranks = np.array(indices, dtype='f8') + 1
+        # noinspection PyTypeChecker
+        mrr = np.sum(1 / ranks[ranks > 0]) / len(indices)
+        # noinspection PyTypeChecker
+        ndcg = np.sum(1 / np.log2(1 + ranks[ranks > 0])) / len(indices)
+        # noinspection PyStringFormat
+        print(
+            "  Avg. index %s: %.3f, Median index: %.3f\n"
+            "  MAP (MRR): %.3f, NDCG: %.3f" % (
+                method, avg_idx, median_idx, mrr, ndcg))
         recalls_at = [
             (k, len([True for i in indices if k > i >= 0]) / len(indices))
             for k in (1, 2, 3, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100)
         ]
-        # noinspection PyStringFormat
-        print("  Avg. index %s: %.3f, Median index: %.3f" % (
-            method, avg_idx, median_idx))
         print("         k:\t%s" % '\t'.join('% 5d' % k for k, r in recalls_at))
         print("  recall@k:\t%s" % '\t'.join('%.3f' % r for k, r in recalls_at))
 
