@@ -327,17 +327,16 @@ class FusionModel(Fusion):
             vecs_, ratios = vecs_labels_to_unique_vecs_ratio(vecs, labels)
             labels = ratios >= config.FUSION_CMERGE_VECS_R
 
-            if config.FUSION_PARAM_TUNING:
-                # merging vectors is problematic wrt. gtps which we use as
-                # "group" for GroupKFold. The following is a simplification to
-                # still have the above benefits, by assigning the full vector
-                # randomly to one of its gtps.
-                vec_gtpidxs = defaultdict(list)
-                for vec, gtpidx in zip(vecs, groups):
-                    vec_gtpidxs[tuple(vec)].append(gtpidx)
-                r = random.Random(42)
-                groups = np.array([
-                    r.choice(vec_gtpidxs[tuple(v)]) for v in vecs_])
+            # merging vectors is problematic wrt. gtps which we use as
+            # "group" for GroupKFold. The following is a simplification to
+            # still have the above benefits, by assigning the full vector
+            # randomly to one of its gtps.
+            vec_gtpidxs = defaultdict(list)
+            for vec, gtpidx in zip(vecs, groups):
+                vec_gtpidxs[tuple(vec)].append(gtpidx)
+            r = random.Random(42)
+            groups = np.array([
+                r.choice(vec_gtpidxs[tuple(v)]) for v in vecs_])
 
             vecs = vecs_
 
