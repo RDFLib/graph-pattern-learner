@@ -38,9 +38,20 @@ all_fusion_methods = OrderedDict(
 
 def get_fusion_methods_from_str(fms_arg=None):
     if not fms_arg:
-        return all_fusion_methods.values()
+        fms_arg = 'default'
+    # default = [
+    #     'basic',
+    #     'svm_linear', 'svm_rbf', 'gtb', 'neural_net', 'logistic_regression',
+    #     'rank_svm',
+    # ]
+    default = ['all']
 
     fmsl = [s.strip() for s in fms_arg.split(',')]
+    if 'default' in fmsl:
+        # replace 'default' with its method names
+        i = fmsl.index('default')
+        fmsl[i:i+1] = default
+
     # replace with fusion methods, also expanding 'basic' and 'classifiers'
     fml = []
     for s in fmsl:
@@ -54,6 +65,8 @@ def get_fusion_methods_from_str(fms_arg=None):
             fml.extend(classifier_fm_slow)
         elif s == 'regressors':
             fml.extend(regression_fm)
+        elif s == 'all':
+            fml.extend(all_fusion_methods.values())
         else:
             try:
                 fml.append(all_fusion_methods[s])
