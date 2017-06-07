@@ -47,3 +47,47 @@ Util.HSVtoRGB = function(h, s, v) {
 Util.getQueryParams = function(str) {
     return (str || document.location.search).replace(/(^\?)/,'').split("&").map(function(n){return n = n.split("="),this[n[0]] = n[1],this}.bind({}))[0];
 };
+
+
+Util.encodeHash = function (view, pattern) {
+    view = view || 'graph';
+    if (view.indexOf('_') >= 0) throw "Don't use '_' in view names";
+    if (view.indexOf('#') == 0) view = view.slice(1);
+    if (pattern != null) return "#" + view + "_" + (pattern-0+1);
+    else return "#" + view
+};
+Util.decodeHash = function (hash) {
+    hash = hash || window.location.hash;
+    var re = new RegExp("#?([^_]+)_(.*)");
+    var match = hash.match(re);
+    if (match != null) return [match[1], match[2]-1];
+    re = new RegExp("#?([^_]+)");
+    match = hash.match(re);
+    if (match != null) return match.slice(1, 2);
+    return null
+};
+
+Util.replaceHash = function (hash, uri) {
+    uri = uri || window.location.href;
+    var idx = uri.lastIndexOf("#");
+    if (idx < 0) {
+        return uri + hash;
+    } else {
+        return uri.slice(0, idx) + hash;
+    }
+};
+
+/* https://stackoverflow.com/questions/5999118/add-or-update-query-string-parameter */
+Util.setQueryParams = function(key, value, uri) {
+    uri = uri || document.location.href;
+    var re = new RegExp("([?&])" + key + "=[^#&$]*?(&|$|#)", "i");
+    var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+    if (uri.match(re)) {
+        return uri.replace(re, '$1' + key + "=" + value + '$2');
+    }
+    else {
+        var uriParts = uri.split('#');
+        if (uriParts.length == 1) uriParts.push('');
+        return uriParts[0] + separator + key + "=" + value + '#' + uriParts[1];
+    }
+};

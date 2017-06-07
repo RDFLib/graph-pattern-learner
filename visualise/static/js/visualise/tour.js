@@ -1,5 +1,4 @@
 function startTour(force_start){
-    $("#graph-nav > a").click();
     var upcoming_step = null; // hack to know upcoming step in onShow
     function next(t) {
         // console.log("next, cur: " + t.getCurrentStep());
@@ -71,7 +70,10 @@ function startTour(force_start){
             },
             {
                 element: '#sidebar-global-info-panel',
-                onShow: autoScrollSideBar,
+                onShow: function (t) {
+                    $("#graph-nav > a").click();
+                    autoScrollSideBar(t)
+                },
                 placement: 'left',
                 title: "Result step selection",
                 content: "Let's start on the right. As you might know our evolutionary algorithm operates in several runs to cover the input source-target-pairs. Here you can select the overall aggregated results, the results of each run or even the results of an individual generation in a run."

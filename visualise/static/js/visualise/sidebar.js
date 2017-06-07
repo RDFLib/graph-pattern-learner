@@ -149,10 +149,16 @@ Sidebar.updateFileInfoAndHistory = function ( currentRun, currentGeneration,
     Sidebar.updateRunGenFields(lastRealRun, lastRealGeneration);
 
     $("#info-timestamp").text(graphsParsed["timestamp"].split(".")[0]);
-    var permLinkSuffix = "?fn="+graphsParsed["filename"];
+    var fn = graphsParsed["filename"];
+    var permLinkSuffix = "?fn="+fn;
     $("#info-permalink").attr("href", permLinkSuffix);
-    window.history.pushState(
-        permLinkSuffix, "", permLinkSuffix);
+    var url = Util.setQueryParams('fn', fn);
+    if (window.location.href != url) {
+        url = Util.replaceHash('', url);
+        window.history.pushState({fn: fn}, "", url);
+    } else {
+        window.history.replaceState({fn: fn}, "", url);
+    }
 
     var radioContainer = $("#graph-radios");
     radioContainer.html("");
@@ -273,7 +279,8 @@ Sidebar.getSelected = function() {
 };
 
 
-if (!('RUNS_GENS_DICT' in window)) {
-    console.error("sidebar.js requires global var RUNS_GENS_DICT to be set.");
+if (!('RUNS_GENS_DICT' in window && 'Util' in window)) {
+    console.error("sidebar.js requires global var RUNS_GENS_DICT to be set and " +
+                  "module Util to be loaded.");
     delete Sidebar;
 }
