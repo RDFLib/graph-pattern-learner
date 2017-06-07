@@ -228,6 +228,7 @@ def get_all_wikipedia_stimuli_for_triplerater(verified_mappings):
 
 
 def main():
+    import numpy as np
     import logging.config
     logging.basicConfig(level=logging.INFO)
 
@@ -247,6 +248,11 @@ def main():
     ))
     print("used for training", len(train))
     print("used for eval", len(verify))
+    # for v in verify.values():
+    #     print(v)
+    for split in [train, verify]:
+        a = np.array([int(v['count'])/100 for v in split.values()])
+        print('avg association strength:', a.mean(), 'stddev', a.std())
 
     sem_assocs = get_semantic_associations(None)
     if not path.isfile(config.GT_ASSOCIATIONS_FILENAME):
