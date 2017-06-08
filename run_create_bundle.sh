@@ -29,6 +29,7 @@ PROCESSES=${PROCESSES:-16}
 PROCESSES=$(( $PROCESSES * 3 / 4 ))  # leave some for virtuoso
 VIRTUOSO_MAX_MEM=${VIRTUOSO_MAX_MEM:-40000000}  # in KB, don't ask why (should leave enough room for gp learner to 60 GB)
 VIRTUOSO_INI="${VIRTUOSO_INI:-$HOME/virtuoso.ini}"
+BUNDLE_POST=${BUNDLE_POST:-}
 
 function usage() {
     echo "usage: $0 [--virtuoso_db_pack=/virtuso_db.tar.lzop] [--sparql_endpoint=$SPARQL] [--processes=$PROCESSES] [--visualise] [--] bundle_path [args_for_run.py]" >&2
@@ -175,6 +176,7 @@ else
     host=""
     bundle="$1"
 fi
+bundle="$bundle$BUNDLE_POST"
 shift
 
 
