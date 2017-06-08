@@ -27,8 +27,8 @@ PROCESSES=${SLURM_CPUS_PER_TASK}
 PROCESSES=${PROCESSES:-$SLURM_CPUS_ON_NODE}
 PROCESSES=${PROCESSES:-16}
 PROCESSES=$(( $PROCESSES * 3 / 4 ))  # leave some for virtuoso
-VIRTUOSO_MAX_MEM=40000000  # in KB, don't ask why (should leave enough room for gp learner to 60 GB)
-
+VIRTUOSO_MAX_MEM=${VIRTUOSO_MAX_MEM:-40000000}  # in KB, don't ask why (should leave enough room for gp learner to 60 GB)
+VIRTUOSO_INI="${VIRTUOSO_INI:-$HOME/virtuoso.ini}"
 
 function usage() {
     echo "usage: $0 [--virtuoso_db_pack=/virtuso_db.tar.lzop] [--sparql_endpoint=$SPARQL] [--processes=$PROCESSES] [--visualise] [--] bundle_path [args_for_run.py]" >&2
@@ -224,14 +224,14 @@ function virtuoso_watchdog() {
                 isql <<< "shutdown;"
                 while pgrep virtuoso ; do sleep 5 ; done
                 echo "virtuoso stopped, starting again..."
-                scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
+                scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" "$VIRTUOSO_INI" >&2
                 echo "ok, virtuoso back up, removing pause.lck"
                 rm "$bundle/results/pause.lck"
                 echo "done, thanks for flying with WTF!!!"
             fi
         else
             echo "virtuoso not running? trying to start it..."
-            scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
+            scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" "$VIRTUOSO_INI" >&2
         fi
         sleep 60
     done
@@ -246,7 +246,7 @@ fi
 if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
     echo "disk free before virtuoso db unpacking" >&2
     df -h >&2
-    scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" $HOME/virtuoso.ini >&2
+    scripts/virtuoso_unpack_local_and_run.sh "$VIRTUOSO_DB_PACK" "$VIRTUOSO_INI" >&2
     echo "disk free after virtuoso db unpacking" >&2
     df -h >&2
 

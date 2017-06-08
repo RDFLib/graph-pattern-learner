@@ -5,7 +5,7 @@ set -x
 TMPDIR="${TMPDIR:-/tmp/gp_learner_$RANDOM}"
 TMP_DIR="$TMPDIR/virtuoso_db"
 #PACKER="gzip"
-PACKER=lzop
+PACKER="${PACKER:-lzop}"
 
 if ! hash $PACKER 2>/dev/null ; then
     echo "packer $PACKER doesn't exist, aborting..." >&2
