@@ -33,6 +33,15 @@ publications, as well as the resulting patterns learned for human associations
 from a local DBpedia endpoint including wikilinks.
 
 
+Requirements
+------------
+
+To run the graph pattern learner, we recommend:
+- >= 8 cores
+- > 8 GB free RAM
+- Linux 64 bit with Python 2.7
+
+
 Installation
 ------------
 
@@ -65,13 +74,9 @@ version, but restrict yourself to one process.
 Always feel free to reach out for help or feedback via the issue tracker or via
 associations at joernhees de. We might even run the learner for you ;)
 
-Before running, make sure to activate the virtual environment:
-
-    . venv/bin/activate
-
 To get a list of all available options run:
 
-    python run.py --help
+    . venv/bin/activate && python run.py --help ; deactivate
 
 Don't be scared by the length, most options use sane defaults, but it's nice to
 be able to change things once you become more familiar with your data and the
@@ -80,34 +85,27 @@ learner.
 The options you will definitely be interested are:
 
     --associations_filename (defaults to ./data/gt_associations.csv)
-    --sparql_endpoint (defaults to http://dbpedia.org/sparql)
+    --sparql_endpoint (defaults to http://localhost:8890/sparql)
 
-To run the algorithm you might want to run it like this:
+To run a full training cycle, you probably might want to execute this:
 
-    ./clean_logs.sh
-    PYTHONIOENCODING=utf-8 python \
-        run.py --associations_filename=... --sparql_endpoint=... \
-        2>&1 | tee >(gzip > logs/main.log.gz)
+    ./run_create_bundle.sh --processes=8 --sparql_endpoint=... --visualise \
+        ./results/your_bundle_name \
+        --associations_filename=... # ... other-options ...
 
-If you want to speed things up you can (and should) run with SCOOP in parallel:
+The algorithm will then by default randomly split your input list of
+source-target-pairs into a training and a test set, train on the training set,
+visualise the resulting learned patterns in `./results/bundle_name/visualise`,
+before evaluating predictions on first the training- and then the test-set.
 
-    ./clean_logs.sh
+To use a learned model for prediction, you can run:
+
+    . venv/bin/activate && \
     PYTHONIOENCODING=utf-8 python \
         -m scoop -n8 run.py --associations_filename=... --sparql_endpoint=... \
-        2>&1 | tee >(gzip > logs/main.log.gz)
-
-SCOOP will then run the graph pattern learner distributed over 8 cores (-n).
-
-The algorithm will by default randomly split your input list of
-source-target-pairs into a training and a test set. If you want to see how well
-the learned patterns generalise, you can run:
-
-    ./run_create_bundle.sh ./results/bundle_name sparql_endpoint \
-        --associations_filename=...
-
-The script will then first learn patterns, visualise them in
-`./results/bundle_name/visualise`, before evaluating predictions on first the
-training- and then the test-set.
+        --RES_DIR=./results/your_bundle_name/results \
+        --predict=manual ; \
+    deactivate
 
 
 Contributors
