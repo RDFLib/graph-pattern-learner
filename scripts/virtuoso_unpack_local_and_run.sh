@@ -77,7 +77,11 @@ date --rfc-3339=seconds
 if [[ "$PACKER" = "none" ]] ; then
     tar -xvf "$pack"
 else
-    dd bs=2G if="$pack" | "$PACKER" -d | tar -xvf -
+    if [[ "$PACKER" == *pixz ]] ; then
+        $PACKER -k -d -t -i "$pack" | tar -xvf -
+    else
+        dd bs=2G if="$pack" | "$PACKER" -d | tar -xvf -
+    fi
 fi
 echo -n "extraction complete "
 date --rfc-3339=seconds
