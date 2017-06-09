@@ -307,6 +307,8 @@ if [[ $VISUALISE = true ]] ; then
     time_echo "preparing visualise end: " | tee -a "$bundle_log"
 fi
 
+time_echo "repacking top_graph_patterns: " | tee -a "$bundle_log"
+scripts/pack_top_graph_patterns.sh "$bundle/results/generations" || true
 
 echo "done, bundle size:"
 du -sh "$bundle"

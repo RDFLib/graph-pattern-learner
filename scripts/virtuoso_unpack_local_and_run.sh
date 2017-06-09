@@ -7,7 +7,7 @@ TMP_DIR="$TMPDIR/virtuoso_db"
 #PACKER="gzip"
 PACKER="${PACKER:-lzop}"
 
-if ! hash $PACKER 2>/dev/null ; then
+if ! command -v $PACKER 2>/dev/null ; then
     echo "packer $PACKER doesn't exist, aborting..." >&2
     exit 3
 fi
