@@ -14,6 +14,7 @@ gen_folder="$1"
 if command -v pxz > /dev/null ; then
     # properly pack top_graph_pattern run files together
     pushd "$gen_folder" > /dev/null
+    size_before=$(du -b . | awk '{print $1}')
     tgprs=$(
         ls top_graph_patterns_run*.json* |
         grep -Eo 'top_graph_patterns_run_[0-9]+_' |
@@ -21,8 +22,11 @@ if command -v pxz > /dev/null ; then
     )
     for tgpr in $tgprs ; do
         ls $tgpr*.json* | xargs -t -P0 -n1 gunzip &&
-        tar -cvf - $tgpr*.json | pxz > "${tgpr}pack.tar.xz" ||
+        tar -cvf - $tgpr*.json | pxz > "${tgpr}pack.tar.xz" &&
+        rm $tgpr*.json ||
         gzip $tgpr*.json  # re-pack in case something goes wrong
     done
+    size_after=$(du -b . | awk '{print $1}')
+    echo "reduced size by $(($size_before - $size_after))"
     popd > /dev/null
 fi
