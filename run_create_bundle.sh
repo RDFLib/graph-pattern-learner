@@ -275,7 +275,7 @@ other: $@
 
 time_echo "start: " | tee -a "$bundle_log"
 
-# if running on slurm cluster, write logs locally and only write back on error (see end)
+# if running on slurm cluster, write logs locally and only write back on error (see cleanup)
 if [[ -n "$SLURM_JOB_ID" && -n "$TMPDIR" ]] ; then
     export GP_LEARNER_LOG_DIR="$TMPDIR/logs"
 else
