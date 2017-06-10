@@ -50,7 +50,7 @@ def generate_triples(
     
     This method will generate instantiations (URIRefs) for the Variables v1, v2
     and v3. Depending on the vars_joint parameter the triples for different stps
-    will share URIRefs for 'none' (default), 'edges' or 'all' variables.
+    will share URIRefs for 'none', 'edges' (default) or 'all' variables.
     
     >>> g = generate_triples(gp, stps, 'all')
     >>> l = [
@@ -121,7 +121,7 @@ def main():
     ))
     # get list of semantic association pairs and split in train and test sets
     semantic_associations = get_semantic_associations(
-        fn='data/dbpedia_random_1000k_uri_pairs.csv.gz',
+        fn='data/dbpedia_random_1000_uri_pairs.csv.gz',
         limit=100,
     )
     # assocs_train, assocs_test = split_training_test_set(

@@ -29,8 +29,6 @@ logger = logging.getLogger(__name__)
 logger.info('init')
 
 EVAL_DATA_GRAPH = 'urn:gp_learner:eval:data'
-# SPARQL_ENDPOINT = 'http://elwe4.rhrk.uni-kl.de:8890/sparql'
-# SPARQL_ENDPOINT = 'http://serv-4101.kl.dfki.de:8890/sparql'
 SPARQL_ENDPOINT = 'http://localhost:8890/sparql'
 
 
@@ -82,13 +80,18 @@ def clear_graph(sparql_endpoint=SPARQL_ENDPOINT, graph=EVAL_DATA_GRAPH):
 
 def main():
     from rdflib import Variable
+    # gp = GraphPattern((
+    #     (SOURCE_VAR, Variable('v1'), Variable('v2')),
+    #     (TARGET_VAR, Variable('v3'), Variable('v2')),
+    # ))
     gp = GraphPattern((
-        (SOURCE_VAR, Variable('v1'), Variable('v2')),
-        (TARGET_VAR, Variable('v3'), Variable('v2')),
+        (Variable('v1'), Variable('v2'), SOURCE_VAR),
+        (Variable('v1'), Variable('v3'), Variable('v4')),
+        (Variable('v4'), Variable('v5'), TARGET_VAR),
     ))
     # get list of semantic association pairs and split in train and test sets
     semantic_associations = get_semantic_associations(
-        fn='data/dbpedia_random_1000k_uri_pairs.csv.gz',
+        fn='data/dbpedia_random_1000_uri_pairs.csv.gz',
         limit=None,
     )
     # assocs_train, assocs_test = split_training_test_set(
