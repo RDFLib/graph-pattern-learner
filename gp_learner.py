@@ -863,7 +863,11 @@ def train(toolbox, population, run):
     hall_of_fame.update(pop)
     best_individual = hall_of_fame[0]
     best_individual_gen = g
-    toolbox.generation_step_callback(g, pop)
+    if not toolbox.generation_step_callback(g, pop):
+        logger.info(
+            'terminating learning as requested by generation_step_callback'
+        )
+        return g, pop, hall_of_fame
 
     # TODO: don't double eval same pattern? maybe a bit redundancy is good?
     # TODO: increase timeout if > x % of population fitnesses show timeout
