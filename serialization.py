@@ -73,6 +73,8 @@ def print_population(run, ngen, population, n=10):
 
 
 def save_generation(run, ngen, top_gps, gtp_scores):
+    if not config.SAVE_GENERATIONS:
+        return False
     patterns_found_in_run = [(gp, run) for gp in top_gps]
     file_prefix = 'top_graph_patterns_run_%02d_gen_%02d' % (run, ngen)
     file_path = save_results(
@@ -82,6 +84,7 @@ def save_generation(run, ngen, top_gps, gtp_scores):
         ngen=ngen,
         file_prefix=path.join('generations', file_prefix))
     set_symlink(file_path, 'top_graph_patterns_current.json.gz')
+    return file_path
 
 
 def set_symlink(file_path, symlink_name):
@@ -114,7 +117,9 @@ def remove_old_result_files():
 
 def save_run(
         new_patterns, coverage_counts, run_gtp_scores, overall_gtp_scores, run):
-    fp = save_results(
+    if not config.SAVE_RUNS:
+        return False
+    file_path = save_results(
         new_patterns,
         coverage_counts=coverage_counts,
         gtp_scores=run_gtp_scores,
@@ -122,7 +127,8 @@ def save_run(
         run=run,
         file_prefix=path.join('runs', config.RES_RUN_PREFIX + '_%02d' % run)
     )
-    set_symlink(fp, config.SYMLINK_CURRENT_RES_RUN)
+    set_symlink(file_path, config.SYMLINK_CURRENT_RES_RUN)
+    return file_path
 
 
 def save_results(

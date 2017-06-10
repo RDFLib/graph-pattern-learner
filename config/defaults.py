@@ -15,6 +15,8 @@ GT_ASSOCIATIONS_FILENAME = path.join(DATADIR, 'gt_associations.csv')
 SPLITTING_VARIANTS = ['random', 'target_node_disjoint', 'node_disjoint']
 RESDIR = 'results'  # dir to put learner results
 RES_RUN_PREFIX = 'results_run'
+SAVE_GENERATIONS = True  # whether to save top_graph_pattern_run_XX_gen_YY files
+SAVE_RUNS = True  # whether to save result_run_XX files
 SYMLINK_CURRENT_RES_RUN = 'results_current.json.gz'  # link name
 PAUSE_FILE = 'pause.lck'
 
