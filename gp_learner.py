@@ -79,7 +79,7 @@ from serialization import print_graph_pattern
 from serialization import print_population
 from serialization import print_results
 from serialization import remove_old_result_files
-from serialization import save_population
+from serialization import save_generation
 from serialization import save_results
 from serialization import save_run
 from serialization import set_symlink
@@ -1135,7 +1135,7 @@ def generation_step_callback(
     )
     generation_gtp_scores = gtp_scores.copy_reset()
     generation_gtp_scores.update_with_gps(top_gps)
-    save_population(
+    save_generation(
         run, ngen, top_gps, generation_gtp_scores
     )
 

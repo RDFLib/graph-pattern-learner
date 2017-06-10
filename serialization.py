@@ -72,7 +72,7 @@ def print_population(run, ngen, population, n=10):
     return c
 
 
-def save_population(run, ngen, top_gps, gtp_scores):
+def save_generation(run, ngen, top_gps, gtp_scores):
     patterns_found_in_run = [(gp, run) for gp in top_gps]
     file_prefix = 'top_graph_patterns_run_%02d_gen_%02d' % (run, ngen)
     file_path = save_results(
