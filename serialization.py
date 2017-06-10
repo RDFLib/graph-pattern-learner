@@ -23,6 +23,7 @@ import deap
 import deap.base
 import deap.tools
 import numpy as np
+from splendid import make_dirs_for
 from splendid import run_once
 
 import config
@@ -122,14 +123,6 @@ def save_run(
         file_prefix=path.join('runs', config.RES_RUN_PREFIX + '_%02d' % run)
     )
     set_symlink(fp, config.SYMLINK_CURRENT_RES_RUN)
-
-
-def make_dirs_for(file_path):
-    try:
-        os.makedirs(path.dirname(file_path))
-    except OSError:
-        pass
-    return file_path
 
 
 def save_results(
