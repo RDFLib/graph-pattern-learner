@@ -10,6 +10,9 @@ if [[ $# -ne 1 ]] ; then
 fi
 
 gen_folder="$1"
+if [[ ! -d "$gen_folder" ]] ; then
+    return
+fi
 
 if command -v pxz > /dev/null ; then
     # properly pack top_graph_pattern run files together
