@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 import logging
+import os
 import sys
 from datetime import datetime
 from os import path
@@ -17,9 +18,8 @@ import logging_config
 
 # not all import on top due to scoop and init...
 
-GTPS_FILENAME = 'data/dbpedia_random_1000_uri_pairs.csv.gz'
+GTPS_FILENAME = 'data/dbpedia_random_100_uri_pairs.csv.gz'
 EVAL_DATA_GRAPH = 'urn:gp_learner:eval:data'
-RESULT_FILENAME = 'path_length_eval_result.txt'
 
 
 logger = logging.getLogger(__name__)
@@ -55,8 +55,16 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--method",
+        help="which pattern injection method to use",
+        action="store",
+        default="random_path",
+        choices=("random_path", "enum"),
+    )
+
+    parser.add_argument(
         "length",
-        help="length of the randomized path to create and inject",
+        help="length of the pattern to create and inject",
         type=int,
     )
 
@@ -97,10 +105,10 @@ def _main(sparql, gtps):
 
 
 def main(**kwds):
+    from eval.enumerate import load_pattern
     from eval.random_path_loader import path_loader
     from ground_truth_tools import get_semantic_associations
     from utils import log_all_exceptions
-    from utils import curify
 
     logging.info('encoding check: äöüß🎅')  # logging utf-8 byte string
     logging.info(u'encoding check: äöüß\U0001F385')  # logging unicode string
@@ -109,9 +117,34 @@ def main(**kwds):
     print(u'encoding check: äöüß\U0001F385')  # printing unicode string
 
 
-    # inject triples for a random path of given length into endpoint
-    eval_gp = path_loader(**kwds)
+    if kwds['method'] == 'random_path':
+        # inject triples for a random path of given length into endpoint
+        eval_gp = path_loader(**kwds)
+        result_filename = 'path_length_eval_result.txt'
+    elif kwds['method'] == 'enum':
+        from eval.data_generator import generate_triples
+        from eval.data_loader import load_triples_into_endpoint
+        seq = int(os.getenv('SEQ_NUMBER'))  # see script/run_multi_range.sh
+        eval_gp = load_pattern(kwds['length'], seq)
+        logger.info(
+            'Loaded enumerated graph pattern number %d with length %d:\n%s' % (
+                seq, kwds['length'], eval_gp))
 
+        # get list of semantic association pairs
+        gtps = get_semantic_associations(
+            fn=kwds['GT_ASSOCIATIONS_FILENAME'],
+            limit=None,
+        )
+
+        triples = generate_triples(eval_gp, gtps)
+        load_triples_into_endpoint(
+            triples,
+            sparql_endpoint=kwds['SPARQL_ENDPOINT'],
+            graph=kwds['eval_data_graph'],
+        )
+        result_filename = 'enum_eval_result.txt'
+    else:
+        raise NotImplementedError(kwds['method'])
 
     sparql_endpoint = kwds['sparql_endpoint']
     gtps_filename = kwds['gtps_filename']
@@ -148,7 +181,7 @@ def main(**kwds):
     # return code's 0 is success, turn into more intuitive encoding for file
     res = {0: 1, 1: 0, 2: -1}[return_code]
 
-    fn = path.join(config.RESDIR, RESULT_FILENAME)
+    fn = path.join(config.RESDIR, result_filename)
     with open(make_dirs_for(fn), 'a') as f:
         f.write(
             'len: %d, result: %d, took: %.1f s, end (UTC): %s\n'

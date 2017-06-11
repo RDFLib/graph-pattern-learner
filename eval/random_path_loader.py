@@ -118,7 +118,7 @@ def path_loader(
         'Generated random graph pattern with path length %d:\n%s' % (
             length, gp))
 
-    # get list of semantic association pairs and split in train and test sets
+    # get list of semantic association pairs
     semantic_associations = get_semantic_associations(
         fn=gtps_filename,
         limit=None,

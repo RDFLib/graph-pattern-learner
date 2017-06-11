@@ -266,7 +266,7 @@ export PYTHONIOENCODING=utf-8
 
 time_echo "search start: " | tee -a "$bundle_log"
 logfile="$(file_roll "$bundle/search.log" gz)"
-python -m scoop $host -n${PROCESSES} eval/run_path_length_eval.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" "$@" 2>&1 | tee >( gzip > "$logfile")
+python -m scoop $host -n${PROCESSES} eval/run_injection_eval.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --SAVE_GENERATIONS=False --SAVE_RUNS=False "$@" 2>&1 | tee >( gzip > "$logfile")
 time_echo "search end: " | tee -a "$bundle_log"
 
 time_echo "repacking top_graph_patterns: " | tee -a "$bundle_log"

@@ -4,13 +4,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import gzip
+import json
+import sys
 from copy import deepcopy
 from itertools import chain
 from itertools import combinations
 from itertools import combinations_with_replacement
 from itertools import permutations
 from itertools import product
-import sys
+from os import path
 
 import networkx as nx
 from rdflib import Variable
@@ -413,9 +416,34 @@ def simple_paths(length):
         yield n, gp
 
 
+def _jsonify(pattern):
+    if pattern:
+        return json.dumps([[i.n3() for i in t] for t in pattern]) + '\n'
+    else:
+        return ''
+
+
+def _dejsonify(pattern_str):
+    return GraphPattern([
+        tuple([Variable(i) for i in t]) for t in json.loads(pattern_str)])
+
+
+def load_pattern(length, pat_num):
+    """Loads and returns the specified pattern from file generated in main."""
+    fn = path.join('data', 'enumerated_patterns_len%d.jsonl.gz' % length)
+    with gzip.open(fn) as f:
+        for i, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            if i == pat_num:
+                return _dejsonify(line)
+    raise IndexError
+
+
 @log_all_exceptions(logger)
 @exception_stack_catcher
-def main():
+def main(length=4):
     # len | pcon | nej | all          | candidates (all)  | candidates (all)  |
     #     |      |     | (canonical)  | (old method)      | (numerical)       |
     # ----+------+-----+--------------+-------------------+-------------------+
@@ -436,7 +464,6 @@ def main():
 
     # typical above means none of (loops, nej, pcon, source_target_edges)
 
-    length = 5
     canonical = True
 
     _patterns = set()
@@ -452,6 +479,8 @@ def main():
         exclude_isomorphic=canonical and not scoop.IS_RUNNING,
         count_candidates_only=False,
     )
+    f = gzip.open(
+        path.join('data', 'enumerated_patterns_len%d.jsonl.gz' % length), 'w')
 
     if canonical and scoop.IS_RUNNING:
         # Graph pattern isomorphism checking is what takes by far the longest.
@@ -470,11 +499,13 @@ def main():
                     assert pattern is None or len(pattern) == length, \
                         'pattern too short: %s' % (pattern,)
                     _patterns.add(pattern)
+                    f.write(_jsonify(pattern))
     else:
         # run potential canonicalization inline
         for n, (i, pattern) in enumerate(pg):
             print('%d: Pattern id %d: %s' % (n, i, pattern))
             _patterns.add(pattern)
+            f.write(_jsonify(pattern))
     # last res of pg is (i, None)
     _patterns.remove(None)
     print('Number of pattern candidates: %d' % i)
