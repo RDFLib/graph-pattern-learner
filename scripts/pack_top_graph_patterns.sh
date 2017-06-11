@@ -11,7 +11,7 @@ fi
 
 gen_folder="$1"
 if [[ ! -d "$gen_folder" ]] ; then
-    return
+    exit 1
 fi
 
 if command -v pxz > /dev/null ; then
