@@ -86,7 +86,8 @@ def _main(sparql, gtps):
     try:
         res = find_graph_pattern_coverage(sparql, gtps)
         result_patterns, coverage_counts, gtp_scores = res
-        if gtp_scores.remaining_gain < config.MIN_REMAINING_GAIN:
+        if gtp_scores.remaining_gain < 5 * config.MIN_REMAINING_GAIN:
+            # 5*: in rare cases happens that some of the gtps run into a timeout
             pattern_found = True
     except GPLearnerTestPatternFoundException:
         # XXX: unused at the moment due to quick stop already taking care
