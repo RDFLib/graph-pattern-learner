@@ -31,8 +31,9 @@ function watch_resource_usage() {
         top -n1 -b -o'%CPU' | head -n12 || true
         top -n1 -b -o'%MEM' | head -n12 | tail -n+6 || true
         df -h "$bundle" "$TMPDIR" 2>/dev/null || true
+        virtuoso_setup=$(pgrep -f virtuoso_unpack_local)
         load=$(uptime | sed -n -e 's/^.*load average: .*, \(.*\), .*$/\1/p')
-        if [[ $(echo "$load < 1" | bc) -eq 1 ]] ; then
+        if [[ -z "$virtuoso_setup" && $(echo "$load < 1" | bc) -eq 1 ]] ; then
             # it seems that when a scoop worker is killed due to out of mem, the
             # parent process locks up waiting for its answer :(
             echo "5 min load avg. is below 1..."
@@ -63,7 +64,7 @@ function watch_resource_usage() {
         else
             low_load_counter=0
         fi
-        sleep ${1:-60}
+        sleep ${1:-300}
     done
 }
 
@@ -170,6 +171,10 @@ function cleanup_gp_learner() {
         kill "$resource_watcher_pid" || true
     fi
 
+    if [[ -n "$virtuoso_watchdog_pid" ]] ; then
+        kill "$virtuoso_watchdog_pid" || true
+    fi
+
     if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
         isql <<< "shutdown;" || true
     fi
@@ -181,6 +186,11 @@ function cleanup_gp_learner() {
         fi
         exit 2
     fi
+
+    # wait for virtuoso to actually shut down...
+    for i in {1..18} ; do
+        pgrep virtuoso > /dev/null && break || sleep 10
+    done
 }
 trap cleanup_gp_learner EXIT
 
