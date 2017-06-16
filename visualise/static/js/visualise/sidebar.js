@@ -106,8 +106,10 @@ Sidebar.updateGraphInfo = function(pattern, graphIndex) {
     var matchingPairs = pattern["matching_node_pairs"];
     for (i = 0; i < matchingPairs.length; i++) {
         tr = $("<tr>");
+        // graceful fallback for old prepared visualise files
+        var sparqlPairLink = SPARQL_BASE_URI + matchingPairs[i][2].split(/^(https?:.*?\?.*?=)?(.+)/)[2];
         tr.append("<td class=\"pair-link\">" +
-            '<a href="'+SPARQL_BASE_URI+matchingPairs[i][2]+'" target="_blank">' +
+            '<a href="'+sparqlPairLink+'" target="_blank">' +
             '<span class="glyphicon glyphicon-share" aria-hidden="true">' +
             "</span></a>" +
             "</td>");
@@ -129,9 +131,10 @@ Sidebar.updateGraphInfo = function(pattern, graphIndex) {
         tr.append(td);
         colPairData.append(tr);
     }
-
+    // graceful fallback for old prepared visualise files
+    var sparqlLink = SPARQL_BASE_URI + pattern["sparql_link"].split(/^(https?:.*?\?.*?=)?(.+)/)[2];
     $("#sparql-link")
-        .attr("href", SPARQL_BASE_URI + pattern["sparql_link"]);
+        .attr("href", sparqlLink);
     $("#sparql-query")
         .text(pattern["sparql_query"]);
 };
