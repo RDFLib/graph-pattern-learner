@@ -438,6 +438,8 @@ class FusionModel(Fusion):
             targets, vecs = targets_vecs
         else:
             targets, vecs = gp_tcs_to_vecs(gps, target_candidate_lists)
+        if not targets:
+            return []
         scores = self.predict_scores(vecs)
         return sorted(zip(targets, scores), key=itemgetter(1), reverse=True)
 
