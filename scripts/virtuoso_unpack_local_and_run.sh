@@ -1,6 +1,6 @@
 #! /bin/bash
 set -e
-set -x
+#set -x
 
 TMPDIR="${TMPDIR:-/tmp/gp_learner_$RANDOM}"
 TMP_DIR="$TMPDIR/virtuoso_db"
