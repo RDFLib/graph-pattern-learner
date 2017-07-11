@@ -1816,3 +1816,5 @@ def main(
                 sparql, timeout, gps, source, fusion_methods)
             for method, res in method_res.items():
                 print_prediction_results(method, res)
+
+    return sparql, gps, fusion_methods
