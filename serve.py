@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import json
 import logging
 import os
 import sys
@@ -70,6 +71,24 @@ def predict():
         #     ],
         # },
         'fused_results': fused_results
+    }
+    return jsonify(res)
+
+
+@app.route("/api/feedback", methods=["POST"])
+def feedback():
+    # TODO: add timestamps, ips, log to different file
+    fb = {
+        'source': request.form.get('source'),
+        'target': request.form.get('target'),
+        'feedback': request.form.get('feedback') == 'true',
+        'fusion_method': request.form.get('fusion_method'),
+        'rank': int(request.form.get('rank')),
+    }
+    logger.info('received feedback: %s', json.dumps(fb))
+    res = {
+        'success': True,
+        'msg': 'thanks ;)',
     }
     return jsonify(res)
 
