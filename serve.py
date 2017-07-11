@@ -32,12 +32,37 @@ app = Flask(__name__)
 CORS(app)
 
 
+@app.route("/api/ping", methods=["GET"])
+def ping():
+    return jsonify({
+        'success': True
+    })
+
+
 @app.route("/api/graph_patterns", methods=["GET"])
 def graph_patterns():
-    res = {
-        'graph_patterns': GPS,
-    }
-    return jsonify(res)
+    global GPS_DICT
+    if not GPS_DICT:
+        GPS_DICT = {
+            'graph_patterns': [
+                {
+                    k: v
+                    for k, v in gp.to_dict().items()
+                    if k in (
+                        'fitness',
+                        'fitness_weighted',
+                        'fitness_description',
+                        'sparql',
+                        'graph_triples',
+                        # 'matching_node_pairs',
+                        # 'gtp_precisions',
+                        'prefixes',
+                    )
+                }
+                for gp in GPS
+            ],
+        }
+    return jsonify(GPS_DICT)
 
 
 @app.route("/api/predict", methods=["POST"])
@@ -63,7 +88,6 @@ def predict():
     )
     res = {
         'source': source,
-        'graph_patterns': GPS,
         # 'fused_results': {
         #     'target_occs': [
         #         ('http://dbpedia.org/resource/Dog', 42.24),
@@ -210,6 +234,7 @@ if __name__ == "__main__":
     import config
     prog_kwds = parse_args()
     SPARQL, GPS, FUSION_METHODS = init(**prog_kwds)
+    GPS_DICT = None
     if prog_kwds['flask_debug']:
         logger.warning('flask debugging is active, do not use in production!')
     app.run(
