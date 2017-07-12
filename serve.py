@@ -86,15 +86,11 @@ def predict():
         gp_tcs,
         FUSION_METHODS
     )
+    # logger.info(gp_tcs)
     res = {
         'source': source,
-        # 'fused_results': {
-        #     'target_occs': [
-        #         ('http://dbpedia.org/resource/Dog', 42.24),
-        #         ('http://dbpedia.org/resource/Cat', 42),
-        #     ],
-        # },
-        'fused_results': fused_results
+        'graph_pattern_target_candidates': [sorted(tcs) for tcs in gp_tcs],
+        'fused_results': fused_results,
     }
     return jsonify(res)
 
