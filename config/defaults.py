@@ -48,6 +48,7 @@ QUERY_TIMEOUT_MIN = 2.  # minimum query timeout in seconds
 CACHE_SIZE = 1000  # cache for queries and fit-to-live computations
 PREDICTION_RESULT_LIMIT = 1000  # max results per individual GP queries
 PREDICTION_IN_PARALLEL = True  # run the queries for a prediction in parallel?
+PREDICTION_EXCLUDE_SOURCE = False  # exclude source from predicted targets
 
 # evolutionary algorithm:
 NGEN = 20  # number of generations

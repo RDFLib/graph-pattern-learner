@@ -1464,7 +1464,8 @@ def find_graph_pattern_coverage(
     return patterns, coverage_counts, gtp_scores
 
 
-def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
+def predict_target_candidates(
+        sparql, timeout, gps, source, parallel=None, exclude_source=None):
     """Uses the gps to predict target candidates for the given source.
 
     :param sparql: SPARQLWrapper endpoint.
@@ -1472,10 +1473,13 @@ def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
     :param gps: A list of evaluated GraphPattern objects (fitness is used).
     :param source: source node for which to predict target candidates.
     :param parallel: execute prediction queries in parallel?
+    :param exclude_source: remove targets that are source node?
     :return: A list of target_candidate lists for each gp.
     """
     if parallel is None:
         parallel = config.PREDICTION_IN_PARALLEL
+    if exclude_source is None:
+        exclude_source = config.PREDICTION_EXCLUDE_SOURCE
 
     pq = partial(
         predict_query,
@@ -1486,17 +1490,20 @@ def predict_target_candidates(sparql, timeout, gps, source, parallel=None):
     results = map_(pq, gps)
     # drop timings:
     res = [target_candidates for _, target_candidates in results]
+    if exclude_source:
+        res = [[tc for tc in tcs if tc != source] for tcs in res]
     return res
 
 
 def predict_fused_targets(
         sparql, timeout, gps, source,
-        parallel=None, fusion_methods=None
+        parallel=None, fusion_methods=None, exclude_source=None,
 ):
     """Predict candidates and fuse the results."""
     return fuse_prediction_results(
         gps,
-        predict_target_candidates(sparql, timeout, gps, source, parallel),
+        predict_target_candidates(
+            sparql, timeout, gps, source, parallel, exclude_source),
         fusion_methods
     )
 
