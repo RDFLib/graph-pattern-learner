@@ -79,17 +79,25 @@ def predict():
         abort(400, 'no source given')
     source = URIRef(source)
 
-    timeout = calibrate_query_timeout(SPARQL)
+    timeout = TIMEOUT if TIMEOUT > 0 else calibrate_query_timeout(SPARQL)
     gp_tcs = predict_target_candidates(SPARQL, timeout, GPS, source)
     fused_results = fuse_prediction_results(
         GPS,
         gp_tcs,
         FUSION_METHODS
     )
+    orig_length = max([len(v) for k, v in fused_results.items()])
+    if MAX_RESULTS > 0:
+        for k, v in fused_results.items():
+            del v[MAX_RESULTS:]
+    mt = MAX_TARGET_CANDIDATES_PER_GP
+    if mt < 1:
+        mt = None
     # logger.info(gp_tcs)
     res = {
         'source': source,
-        'graph_pattern_target_candidates': [sorted(tcs) for tcs in gp_tcs],
+        'orig_result_length': orig_length,
+        'graph_pattern_target_candidates': [sorted(tcs[:mt]) for tcs in gp_tcs],
         'fused_results': fused_results,
     }
     return jsonify(res)
@@ -202,6 +210,30 @@ def parse_args():
         default=None,
     )
 
+    # serve specific configs
+    parser.add_argument(
+        "--timeout",
+        help="sets the timeout in seconds for each query (0: auto calibrate)",
+        action="store",
+        type=float,
+        default=.5,
+    )
+    parser.add_argument(
+        "--max_results",
+        help="limits the result list lengths to save bandwidth (0: no limit)",
+        action="store",
+        type=int,
+        default=100,
+    )
+    parser.add_argument(
+        "--max_target_candidates_per_gp",
+        help="limits the target candidate list lengths to save bandwidth "
+             "(0: no limit)",
+        action="store",
+        type=int,
+        default=100,
+    )
+
     cfg_group = parser.add_argument_group(
         'Advanced config overrides',
         'The following allow overriding default values from config/defaults.py'
@@ -230,6 +262,10 @@ if __name__ == "__main__":
     import config
     prog_kwds = parse_args()
     SPARQL, GPS, FUSION_METHODS = init(**prog_kwds)
+
+    TIMEOUT = prog_kwds['timeout']
+    MAX_RESULTS = prog_kwds['max_results']
+    MAX_TARGET_CANDIDATES_PER_GP = prog_kwds['max_target_candidates_per_gp']
     GPS_DICT = None
     if prog_kwds['flask_debug']:
         logger.warning('flask debugging is active, do not use in production!')
