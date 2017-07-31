@@ -12,6 +12,7 @@ from functools import wraps
 from os import path
 
 import SPARQLWrapper
+from cachetools import LFUCache
 from rdflib import URIRef
 from splendid import make_dirs_for
 from splendid import timedelta_to_s
@@ -67,17 +68,22 @@ def graph_patterns():
 
 @app.route("/api/predict", methods=["POST"])
 def predict():
-    from fusion import fuse_prediction_results
-    from gp_learner import predict_target_candidates
-    from gp_query import calibrate_query_timeout
-
     source = request.form.get('source')
     # logger.info(request.data)
     # logger.info(request.args)
     # logger.info(request.form)
     if not source:
         abort(400, 'no source given')
+    logger.info('predicting: %s', source)
     source = URIRef(source)
+
+    return jsonify(PREDICT_CACHE[source])
+
+
+def _predict(source):
+    from fusion import fuse_prediction_results
+    from gp_learner import predict_target_candidates
+    from gp_query import calibrate_query_timeout
 
     timeout = TIMEOUT if TIMEOUT > 0 else calibrate_query_timeout(SPARQL)
     gp_tcs = predict_target_candidates(SPARQL, timeout, GPS, source)
@@ -100,7 +106,7 @@ def predict():
         'graph_pattern_target_candidates': [sorted(tcs[:mt]) for tcs in gp_tcs],
         'fused_results': fused_results,
     }
-    return jsonify(res)
+    return res
 
 
 @app.route("/api/feedback", methods=["POST"])
@@ -233,6 +239,13 @@ def parse_args():
         type=int,
         default=100,
     )
+    parser.add_argument(
+        "--predict_cache_size",
+        help="how many prediction results to cache",
+        action="store",
+        type=int,
+        default=1000,
+    )
 
     cfg_group = parser.add_argument_group(
         'Advanced config overrides',
@@ -267,6 +280,7 @@ if __name__ == "__main__":
     MAX_RESULTS = prog_kwds['max_results']
     MAX_TARGET_CANDIDATES_PER_GP = prog_kwds['max_target_candidates_per_gp']
     GPS_DICT = None
+    PREDICT_CACHE = LFUCache(prog_kwds['predict_cache_size'], _predict)
     if prog_kwds['flask_debug']:
         logger.warning('flask debugging is active, do not use in production!')
     app.run(
