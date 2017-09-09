@@ -1516,17 +1516,25 @@ def find_in_prediction(prediction, target):
         return -1
 
 
-def print_prediction_results(method, res, target=None, idx=None):
+def format_prediction_results(method, res, target=None, idx=None, n=10):
     assert not ((target is None) ^ (idx is None)), \
         "target and idx should both be None or neither"
-    print(
-        '  Top 10 predictions (method: %s)%s' % (
-            method, (", target at idx: %d" % idx) if idx is not None else ''))
-    for t, score in res[:10]:
-        print(
+    rs = [
+        '  Top %d predictions (method: %s)%s' % (
+            n, method,
+            (", target at idx: %d" % idx) if idx is not None else ''
+        )
+    ]
+    for t, score in res[:n]:
+        rs.append(
             '  ' + ('->' if t == target else '  ') +
             '%s (%.3f)' % (t.n3(), score)
         )
+    return '\n'.join(rs)
+
+
+def print_prediction_results(method, res, target=None, idx=None, n=10):
+    print(format_prediction_results(method, res, target, idx, n))
 
 
 def evaluate_predictions(
