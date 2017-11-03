@@ -53,10 +53,6 @@ def get_verified_mappings():
     return res
 
 
-def split_mapping_training_test_set(mappings, split=0.1, seed=42):
-    return map(dict, split_training_test_set(mappings.items(), split, seed))
-
-
 def wiki_to_dbpedia_link(wikilink):
     return wikilink.replace(
         'http://en.wikipedia.org/wiki/', 'http://dbpedia.org/resource/', 1)
@@ -240,19 +236,12 @@ def main():
     # get_all_wikipedia_stimuli_for_triplerater(verified_mappings)
     # sys.exit(0)
 
-    train, verify = split_mapping_training_test_set(verified_mappings)
+    # from pprint import pprint
     # pprint(verified_mappings)
     print("verified mappings {} ({} raw associations)".format(
         len(verified_mappings),
         sum([int(m['count']) for m in verified_mappings.values()]),
     ))
-    print("used for training", len(train))
-    print("used for eval", len(verify))
-    # for v in verify.values():
-    #     print(v)
-    for split in [train, verify]:
-        a = np.array([int(v['count'])/100 for v in split.values()])
-        print('avg association strength:', a.mean(), 'stddev', a.std())
 
     sem_assocs = get_semantic_associations(None)
     if not path.isfile(config.GT_ASSOCIATIONS_FILENAME):
@@ -260,6 +249,27 @@ def main():
         print("created {}".format(config.GT_ASSOCIATIONS_FILENAME))
     assert get_semantic_associations(config.GT_ASSOCIATIONS_FILENAME) == \
         sem_assocs
+
+    # also write individual train and test files and print association strengths
+    assocs_train, assocs_test = split_training_test_set(sem_assocs)
+    for t, at in [('train', assocs_train), ('test', assocs_test)]:
+        fn = config.GT_ASSOCIATIONS_FILENAME.replace('.csv', '_%s.csv' % t)
+        if not path.isfile(fn):
+            write_semantic_associations(at, fn=fn)
+            print("created %s" % fn)
+
+        # calculate human groundtruth association strengths from orig mapping
+        _at = set((str(s), str(t)) for s, t in at)
+        a = np.array([
+            int(v['count']) / 100
+            for v in verified_mappings.values()
+            if get_dbpedia_pairs_from_mappings({'x': v})[0] in _at
+        ])
+        print(t, 'avg association strength:', a.mean(), 'stddev', a.std())
+    print("used for training", len(assocs_train))
+    print("used for eval", len(assocs_test))
+    print("overlap train & test", len(set(assocs_train) & set(assocs_test)))
+
 
 
 if __name__ == '__main__':
