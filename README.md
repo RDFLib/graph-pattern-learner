@@ -37,8 +37,8 @@ Requirements
 ------------
 
 To run the graph pattern learner, we recommend:
-- >= 8 cores
-- > 8 GB free RAM
+- 8 cores (for parallel execution)
+- more than 8 GB free RAM
 - Linux 64 bit with Python 2.7
 
 
