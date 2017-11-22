@@ -1740,7 +1740,7 @@ def main(
 
     if print_query_patterns:
         print(
-            'using the following %d graph patterns for prediction:' % len(gps)
+            '\nusing the following %d graph patterns for prediction:' % len(gps)
         )
         for i, gp in enumerate(gps):
             print('Graph pattern #%d:' % i)
@@ -1781,8 +1781,17 @@ def main(
             timer_start = timer_stop
         else:
             _gps, _gtps, gtp_gp_tcs = loaded_predictions
-            assert gps == _gps
-            assert gtps == _gtps
+            assert gps == _gps, (
+                "result patterns learned from previous execution did not match "
+                "the current ones (e.g. due to changed --max_queries and/or "
+                "clustering). Consider removing generated *.pkl.gz temp files"
+            )
+            assert gtps == _gtps, (
+                "ground truth pairs from previous execution do not match the "
+                "current ones (e.g. due to changed --associations_filename). "
+                "Consider re-running full training with --reset, running in "
+                "manual mode or invoking serve.py."
+            )
 
         train_fusion_models(gps, gtps, gtp_gp_tcs, fusion_methods)
         timer_stop = datetime.utcnow()
