@@ -29,7 +29,7 @@ PROCESSES=${PROCESSES:-16}
 PROCESSES=$(( $PROCESSES * 3 / 4 ))  # leave some for virtuoso
 VIRTUOSO_MAX_MEM=${VIRTUOSO_MAX_MEM:-40000000}  # in KB, don't ask why (should leave enough room for gp learner to 60 GB)
 VIRTUOSO_INI="${VIRTUOSO_INI:-$HOME/virtuoso.ini}"
-BUNDLE_POST=${BUNDLE_POST:-}
+BUNDLE_POSTFIX=${BUNDLE_POSTFIX:-}
 
 function usage() {
     echo "usage: $0 [--virtuoso_db_pack=/virtuso_db.tar.lzop] [--sparql_endpoint=$SPARQL] [--processes=$PROCESSES] [--visualise] [--] bundle_path [args_for_run.py]" >&2
@@ -177,7 +177,7 @@ else
     host=""
     bundle="$1"
 fi
-bundle="$bundle$BUNDLE_POST"
+bundle="$bundle$BUNDLE_POSTFIX"
 shift
 
 
@@ -193,11 +193,10 @@ function cleanup_gp_learner() {
         kill "$resource_watcher_pid" || true
     fi
 
-    if [[ -n "$virtuoso_watchdog_pid" ]] ; then
-        kill "$virtuoso_watchdog_pid" || true
-    fi
-
     if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
+        if [[ -n "$virtuoso_watchdog_pid" ]] ; then
+            kill "$virtuoso_watchdog_pid" || true
+        fi
         isql <<< "shutdown;" || true
     fi
 
@@ -209,10 +208,12 @@ function cleanup_gp_learner() {
         exit 2
     fi
 
-    # wait for virtuoso to actually shut down...
-    for i in {1..18} ; do
-        pgrep virtuoso > /dev/null && break || sleep 10
-    done
+    if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
+        # wait for virtuoso to actually shut down...
+        for i in {1..18} ; do
+            pgrep virtuoso > /dev/null && break || sleep 10
+        done
+    fi
 }
 trap cleanup_gp_learner EXIT
 
