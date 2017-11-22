@@ -211,7 +211,8 @@ function cleanup_gp_learner() {
     if [[ -n "$VIRTUOSO_DB_PACK" ]] ; then
         # wait for virtuoso to actually shut down...
         for i in {1..18} ; do
-            pgrep virtuoso > /dev/null && break || sleep 10
+            pgrep virtuoso > /dev/null || break
+            sleep 10
         done
     fi
 }
