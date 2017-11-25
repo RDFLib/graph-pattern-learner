@@ -257,6 +257,11 @@ def fit_to_live(child):
         for _, _, o in child if isinstance(o, Literal)
     ]):
         return False
+    if any([
+        isinstance(s, Literal) or isinstance(p, (BNode, Literal))
+        for s, p, _ in child
+    ]):
+        return False
     if not child.is_connected(via_edges=config.PATTERN_P_CONNECTED):
         return False
     return True
