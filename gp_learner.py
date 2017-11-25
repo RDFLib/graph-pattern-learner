@@ -1680,11 +1680,12 @@ def main(
             coverage_counts,
             gtp_scores,
         )
+        timer_stop = datetime.utcnow()
+        logging.info('Training took: %s', timer_stop - timer_start)
     else:
         result_patterns, coverage_counts, gtp_scores = load_results(last_res)
-
-    timer_stop = datetime.utcnow()
-    logging.info('Training/loading model took: %s', timer_stop - timer_start)
+        timer_stop = datetime.utcnow()
+        logging.info('Loading model took: %s', timer_stop - timer_start)
     timer_start = timer_stop
 
     sys.stdout.flush()
@@ -1692,8 +1693,9 @@ def main(
 
     if not result_patterns:
         print("It seems as if no patterns that satisfy your constraints could "
-              "be found in training. Consider increasing POPSIZE, decreasing "
-              "MIN_SCORE or changing other parameters listed by --help")
+              "be found in training. Consider increasing QUERY_TIMEOUT_MIN, "
+              "POPSIZE, decreasing MIN_SCORE or changing other parameters "
+              "listed by --help")
         sys.exit(1)
 
     print_results(
