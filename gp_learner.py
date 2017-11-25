@@ -1683,8 +1683,18 @@ def main(
     else:
         result_patterns, coverage_counts, gtp_scores = load_results(last_res)
 
+    timer_stop = datetime.utcnow()
+    logging.info('Training/loading model took: %s', timer_stop - timer_start)
+    timer_start = timer_stop
+
     sys.stdout.flush()
     sys.stderr.flush()
+
+    if not result_patterns:
+        print("It seems as if no patterns that satisfy your constraints could "
+              "be found in training. Consider increasing POPSIZE, decreasing "
+              "MIN_SCORE or changing other parameters listed by --help")
+        sys.exit(1)
 
     print_results(
         result_patterns,
@@ -1698,10 +1708,6 @@ def main(
     print('raw patterns: %d' % len(gps))
     sys.stdout.flush()
     sys.stderr.flush()
-
-    timer_stop = datetime.utcnow()
-    logging.info('Training/loading model took: %s', timer_stop - timer_start)
-    timer_start = timer_stop
 
     if show_precision_loss_by_query_reduction:
         # amount of requests one wants to make for a prediction
