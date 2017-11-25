@@ -1169,7 +1169,8 @@ def generation_step_callback(
         "Generation %d:\n"
         "  potential remains: %.1f (%.1f %%)\n"
         "  potential coverage: %.1f (%.1f %%)\n"
-        "Potential gain: %.1f (%.1f %%)",
+        "Potential gain: %.1f (%.1f %%)\n"
+        '(without run post-processing, e.g., min-fitness filtering)',
         run,
         rem_gain, l, rem_gain * 100 / l,
         l - rem_gain, l, (l - rem_gain) * 100 / l,
