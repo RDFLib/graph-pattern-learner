@@ -300,7 +300,7 @@ export PYTHONIOENCODING=utf-8
 
 time_echo "training start: " | tee -a "$bundle_log"
 logfile="$(file_roll "$bundle/train.log" gz)"
-python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='' "$@" 2>&1 | tee >( gzip > "$logfile")
+python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --print_query_patterns --predict='' "$@" 2>&1 | tee >( gzip > "$logfile")
 time_echo "training end: " | tee -a "$bundle_log"
 
 time_echo "predict train set start: " | tee -a "$bundle_log"
