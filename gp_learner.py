@@ -687,20 +687,20 @@ def mutate_simplify_pattern(gp):
     logger.debug('simplifying pattern\n%s', gp)
 
     # remove parallel variable edges (single variables only)
-    # e.g., [ :x ?v1 ?y . :x ?v2 ?y. ]
+    # e.g., [ :x ?v1 ?y . :x ?v2 ?y. ] should remove :x ?v2 ?y.
     identifier_counts = gp.identifier_counts()
-    edges = gp.edges
-    edge_vars = [edge for edge in edges if isinstance(edge, Variable)]
+    edge_vars = [edge for edge in gp.edges if isinstance(edge, Variable)]
     # note that we also count occurrences in non-edge positions just to be safe!
     edge_var_counts = Counter({v: identifier_counts[v] for v in edge_vars})
     edge_vars_once = [var for var, c in edge_var_counts.items() if c == 1]
-    for var in edge_vars_once:
+    for var in sorted(edge_vars_once, reverse=True):
         var_triple = [(s, p, o) for s, p, o in gp if p == var][0]  # only one
         s, _, o = var_triple
         parallel_triples = [
             t for t in gp if (t[0], t[2]) == (s, o) and t[1] != var
         ]
         if parallel_triples:
+            # remove alpha-num largest var triple
             gp -= [var_triple]
 
     # remove edges between fixed nodes (fixed and single var edges from above)
