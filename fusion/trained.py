@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -420,10 +421,8 @@ class FusionModel(Fusion):
         logger.info('%s: MAP on training set: %.3f', self.name, score)
         self.save()
 
-    def fuse(self, gps, target_candidate_lists, targets_vecs=None, clf=None):
-        if not clf:
-            clf = self.model
-        if not clf and self._fuse_auto_load:
+    def fuse(self, gps, target_candidate_lists, targets_vecs=None):
+        if not self.model and self._fuse_auto_load:
             self.load()
             if not self.model:
                 logger.warning(
@@ -431,7 +430,7 @@ class FusionModel(Fusion):
                     'train first?',
                     self.name
                 )
-        if not clf:
+        if not self.model:
             return []
         self._fuse_auto_load = False
         if targets_vecs:
