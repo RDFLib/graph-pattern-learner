@@ -303,10 +303,10 @@ logfile="$(file_roll "$bundle/train.log" gz)"
 python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --print_query_patterns --predict='' "$@" 2>&1 | tee >( gzip > "$logfile")
 time_echo "training end: " | tee -a "$bundle_log"
 
-time_echo "predict train set start: " | tee -a "$bundle_log"
+time_echo "predict train set & fusion training start: " | tee -a "$bundle_log"
 logfile="$(file_roll "$bundle/predict_train.log" gz)"
 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m scoop $host -n${PROCESSES} run.py --sparql_endpoint="$SPARQL" --RESDIR="$bundle/results" --predict='train_set' "$@" 2>&1 | tee -i >(gzip > "$logfile")
-time_echo "predict train set end: " | tee -a "$bundle_log"
+time_echo "predict train set & fusion training end: " | tee -a "$bundle_log"
 
 time_echo "predict test set start: " | tee -a "$bundle_log"
 logfile="$(file_roll "$bundle/predict_test.log" gz)"
