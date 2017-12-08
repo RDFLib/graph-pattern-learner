@@ -103,7 +103,7 @@ def _predict(source):
     res = {
         'source': source,
         'orig_result_length': orig_length,
-        'graph_pattern_target_candidates': [sorted(tcs[:mt]) for tcs in gp_tcs],
+        'graph_pattern_target_candidates': [sorted(tcs)[:mt] for tcs in gp_tcs],
         'fused_results': fused_results,
     }
     return res

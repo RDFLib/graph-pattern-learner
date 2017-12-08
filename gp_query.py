@@ -514,7 +514,7 @@ def predict_query(sparql, timeout, graph_pattern, source,
             'graph pattern without %s used for prediction:\n%r',
             TARGET_VAR.n3(), graph_pattern
         )
-        return timeout, []
+        return timeout, set()
 
     q = graph_pattern.to_sparql_select_query(
         projection=[TARGET_VAR],

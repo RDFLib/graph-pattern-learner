@@ -1480,7 +1480,7 @@ def predict_target_candidates(
     :param source: source node for which to predict target candidates.
     :param parallel: execute prediction queries in parallel?
     :param exclude_source: remove targets that are source node?
-    :return: A list of target_candidate lists for each gp.
+    :return: A list of target_candidate sets for each gp.
     """
     if parallel is None:
         parallel = config.PREDICTION_IN_PARALLEL
@@ -1497,7 +1497,7 @@ def predict_target_candidates(
     # drop timings:
     res = [target_candidates for _, target_candidates in results]
     if exclude_source:
-        res = [[tc for tc in tcs if tc != source] for tcs in res]
+        res = [tcs - {source} for tcs in res]
     return res
 
 
