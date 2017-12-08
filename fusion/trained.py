@@ -93,10 +93,22 @@ def crossval_fm_score_single_split(
         for warning in w:
             if issubclass(warning.category, ConvergenceWarning):
                 limit_reached = True
-    res = fm.scores(
-            vecs[test_idxs], labels[test_idxs], groups[test_idxs],
-            clf=clf
-    )
+    try:
+        res = fm.scores(
+                vecs[test_idxs], labels[test_idxs], groups[test_idxs],
+                clf=clf
+        )
+    except ValueError as e:
+        if e.message.startswith('Expected n_neighbors <= n_samples'):
+            logger.warning(
+                '%s: param %d/%d: CV split %d/%d: %s\nparams: %s',
+                fm.name, params_number, n_params, split, n_splits,
+                'knn n_neighbors <= n_samples, returning -1',
+                params
+            )
+            res = [-1]
+        else:
+            raise
     timer_diff = datetime.utcnow() - timer_start
     _lvl = logging.DEBUG
     reasons = []
