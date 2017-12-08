@@ -1608,8 +1608,10 @@ def evaluate_predictions(
 def main(
         sparql_endpoint=config.SPARQL_ENDPOINT,
         associations_filename=None,
-        print_train_test_sets=True,
         splitting_variant='random',
+        train_filename=None,
+        test_filename=None,
+        print_train_test_sets=True,
         reset=False,
         print_topn_raw_patterns=0,
         print_edge_only_connected_patterns=True,
@@ -1634,11 +1636,20 @@ def main(
     timer_start = datetime.utcnow()
     main_start = timer_start
 
-    # get list of semantic association pairs and split in train and test sets
-    semantic_associations = get_semantic_associations(associations_filename)
-    assocs_train, assocs_test = split_training_test_set(
-        semantic_associations, variant=splitting_variant
-    )
+    if not train_filename and not test_filename:
+        # get semantic association pairs and split in train and test sets
+        semantic_associations = get_semantic_associations(associations_filename)
+        assocs_train, assocs_test = split_training_test_set(
+            semantic_associations, variant=splitting_variant
+        )
+    else:
+        gsa = get_semantic_associations
+        assocs_train = gsa(train_filename) if train_filename else []
+        assocs_test = gsa(test_filename) if train_filename else []
+        if predict == 'train':
+            assert assocs_train, 'trying to train but train file empty'
+        if predict == 'test':
+            assert assocs_test, 'trying to test but test file empty'
     logger.info(
         'training on %d association pairs and testing on %d',
         len(assocs_train), len(assocs_test)

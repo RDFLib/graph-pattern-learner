@@ -27,11 +27,41 @@ if __name__ == "__main__":
         default=config.SPARQL_ENDPOINT,
     )
 
-    parser.add_argument(
-        "--associations_filename",
+    gt_auto_split = parser.add_argument_group(
+        "Ground Truth Auto Split",
+        "Provide a single ground truth file that we automatically split into "
+        "train- and test-set according to specified splitting variant."
+    )
+    gt_auto_split.add_argument(
+        "--associations_filename", "--ground_truth_filename",
         help="ground truth source target file used for training and evaluation",
         action="store",
         default=config.GT_ASSOCIATIONS_FILENAME,
+    )
+    gt_auto_split.add_argument(
+        "--splitting_variant",
+        help="how to split the train, validation & test set (default: random)",
+        action="store",
+        default="random",
+        choices=config.SPLITTING_VARIANTS,
+    )
+
+    gt_manual_split = parser.add_argument_group(
+        "Ground Truth Manual Split",
+        "Provide individual source target pair files for training and testing. "
+        "If only one is given, make sure that --predict is set accordingly."
+    )
+    gt_train_filename = gt_manual_split.add_argument(
+        "--train_filename",
+        help="file with source target pairs for training",
+        action="store",
+        default=None,
+    )
+    gt_test_filename = gt_manual_split.add_argument(
+        "--test_filename",
+        help="file with source target pairs for testing",
+        action="store",
+        default=None,
     )
 
     parser.add_argument(
@@ -40,14 +70,6 @@ if __name__ == "__main__":
         action="store",
         default=True,
         type=config.str_to_bool,
-    )
-
-    parser.add_argument(
-        "--splitting_variant",
-        help="how to split the train, validation & test set",
-        action="store",
-        default="random",
-        choices=config.SPLITTING_VARIANTS,
     )
 
     parser.add_argument(
