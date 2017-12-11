@@ -81,32 +81,12 @@ def predict():
 
 
 def _predict(source):
-    from fusion import fuse_prediction_results
-    from gp_learner import predict_target_candidates
     from gp_query import calibrate_query_timeout
-
+    from predict import predict
     timeout = TIMEOUT if TIMEOUT > 0 else calibrate_query_timeout(SPARQL)
-    gp_tcs = predict_target_candidates(SPARQL, timeout, GPS, source)
-    fused_results = fuse_prediction_results(
-        GPS,
-        gp_tcs,
-        FUSION_METHODS
-    )
-    orig_length = max([len(v) for k, v in fused_results.items()])
-    if MAX_RESULTS > 0:
-        for k, v in fused_results.items():
-            del v[MAX_RESULTS:]
-    mt = MAX_TARGET_CANDIDATES_PER_GP
-    if mt < 1:
-        mt = None
-    # logger.info(gp_tcs)
-    res = {
-        'source': source,
-        'orig_result_length': orig_length,
-        'graph_pattern_target_candidates': [sorted(tcs)[:mt] for tcs in gp_tcs],
-        'fused_results': fused_results,
-    }
-    return res
+    return predict(
+        SPARQL, timeout, GPS, source,
+        FUSION_METHODS, MAX_RESULTS, MAX_TARGET_CANDIDATES_PER_GP)
 
 
 @app.route("/api/feedback", methods=["POST"])

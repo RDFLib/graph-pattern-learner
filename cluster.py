@@ -435,3 +435,28 @@ def select_best_variant(variant_max_k_prec_loss_reps, log_top_k=1):
         ])
     )
     return prec_loss, k, vn, reps
+
+
+def cluster_gps_to_reduce_queries(
+        gps, max_queries, gtp_scores, clustering_variant=None):
+    if 0 < max_queries < len(gps):
+        logger.info(
+            'reducing amount of queries from %d down to %d ...',
+            len(gps), max_queries
+        )
+        gtps = gtp_scores.ground_truth_pairs
+        var_max_k_prec_loss_reps = expected_precision_loss_by_query_reduction(
+            gps, gtps, [max_queries], gtp_scores,
+            variants=[clustering_variant] if clustering_variant else None,
+        )
+        prec_loss, k, vn, reps = select_best_variant(var_max_k_prec_loss_reps)
+
+        logger.info(
+            'reduced number of queries from %d to %d\n'
+            'used variant: %s\n'
+            'expected precision sum loss ratio: %0.3f '
+            '(precision sum loss: %.2f)',
+            len(gps), len(reps), vn, prec_loss, prec_loss * gtp_scores.score
+        )
+        gps = reps
+    return gps

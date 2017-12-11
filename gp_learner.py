@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 import logging_config
 from cluster import expected_precision_loss_by_query_reduction
-from cluster import select_best_variant
+from cluster import cluster_gps_to_reduce_queries
 import config
 from exception import GPLearnerAbortException
 from fusion import fuse_prediction_results
@@ -92,6 +92,10 @@ from utils import sample_from_list
 
 logger.info('init gp_learner')
 signal.signal(signal.SIGUSR1, log_mem_usage)
+
+
+def init_workers():
+    parallel_map(_init_workers, range(1000))
 
 
 def _init_workers(_):
@@ -1631,7 +1635,7 @@ def main(
     print(u'encoding check: äöüß\U0001F385')  # printing unicode string
 
     # init workers
-    parallel_map(_init_workers, range(1000))
+    init_workers()
 
     timer_start = datetime.utcnow()
     main_start = timer_start
@@ -1738,30 +1742,9 @@ def main(
         sys.stdout.flush()
         sys.stderr.flush()
 
-
-    if 0 < max_queries < len(gps):
-        print(
-            'reducing amount of queries from %d down to %d ...' % (
-                len(gps), max_queries)
-        )
-        sys.stdout.flush()
-        var_max_k_prec_loss_reps = expected_precision_loss_by_query_reduction(
-            gps, semantic_associations, [max_queries], gtp_scores,
-            variants=[clustering_variant] if clustering_variant else None,
-        )
-        prec_loss, k, vn, reps = select_best_variant(var_max_k_prec_loss_reps)
-        sys.stderr.flush()
-        print('reduced number of queries from %d to %d' % (len(gps), len(reps)))
-        print('used variant: %s' % vn)
-        print(
-            'expected precision sum loss ratio: %0.3f '
-            '(precision sum loss: %.2f)' % (
-                prec_loss, prec_loss * gtp_scores.score)
-        )
-        gps = reps
-
-        sys.stdout.flush()
-        sys.stderr.flush()
+    # reduce gps by clustering if mandated by max_queries
+    gps = cluster_gps_to_reduce_queries(
+        gps, max_queries, gtp_scores, clustering_variant)
 
     if print_query_patterns:
         print(
