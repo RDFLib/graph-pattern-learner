@@ -20,6 +20,8 @@ from .basic import basic_fm
 from .trained import classifier_fm
 from .trained import classifier_fm_fast
 from .trained import classifier_fm_slow
+from .trained import regression_fm_fast
+from .trained import regression_fm_slow
 from .trained import regression_fm
 from .trained import ranksvm_fm
 from .vecs import gp_tcs_to_vecs
@@ -65,8 +67,30 @@ def get_fusion_methods_from_str(fms_arg=None):
             fml.extend(classifier_fm_slow)
         elif s == 'regressors':
             fml.extend(regression_fm)
+        elif s == 'regressors_fast':
+            fml.extend(regression_fm_fast)
+        elif s == 'regressors_slow':
+            fml.extend(regression_fm_slow)
         elif s == 'all':
             fml.extend(all_fusion_methods.values())
+        elif s.startswith('-'):
+            # allows to remove individual fusion methods
+            # "all,-svr_linear,-svr_rbf"
+            s = s[1:]
+            try:
+                fm = all_fusion_methods[s]
+            except KeyError:
+                logger.error(
+                    'unknown negative fusion method: %s\navailable: %s',
+                    s,
+                    all_fusion_methods.keys()
+                )
+                raise
+            try:
+                fml.remove(fm)
+            except ValueError:
+                logger.warning(
+                    "%s not found in prior fusion methods %s, skipping", s, fml)
         else:
             try:
                 fml.append(all_fusion_methods[s])
@@ -80,6 +104,8 @@ def get_fusion_methods_from_str(fms_arg=None):
                         'classifiers_fast',
                         'classifiers_slow',
                         'regressors',
+                        'regressors_fast',
+                        'regressors_slow',
                     ] + all_fusion_methods.keys()
                 )
                 raise

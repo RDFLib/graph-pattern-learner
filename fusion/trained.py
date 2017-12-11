@@ -578,7 +578,8 @@ class FusionRegressionModel(FusionModel):
         g_scores = clf.predict(vecs)
         return g_scores
 
-regression_fm = [
+
+regression_fm_slow = [
     FusionRegressionModel(
         'kneighbors_r',
         KNeighborsRegressor(leaf_size=200),
@@ -602,6 +603,9 @@ regression_fm = [
             'gamma': np.logspace(-15, 3, 10, base=2),
         },
     ),
+]
+
+regression_fm_fast = [
     FusionRegressionModel(
         "decision_tree_r",
         DecisionTreeRegressor(),
@@ -684,6 +688,8 @@ regression_fm = [
     ),
 ]
 
+regression_fm = regression_fm_slow + regression_fm_fast
+
 
 class RankSVMFusionModel(FusionModel):
     name = 'RankSVMFusion'
@@ -692,6 +698,7 @@ class RankSVMFusionModel(FusionModel):
         if clf is None:
             clf = self.clf
         return clf.decision_function(vecs)
+
 
 ranksvm_fm = [
     RankSVMFusionModel(
