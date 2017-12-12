@@ -88,27 +88,24 @@ def crossval_fm_score_single_split(
     )
     timer_start = datetime.utcnow()
     limit_reached = False
-    with warnings.catch_warnings(record=True) as w:
-        clf.fit(vecs[train_idxs], labels[train_idxs])
-        for warning in w:
-            if issubclass(warning.category, ConvergenceWarning):
-                limit_reached = True
+    # noinspection PyBroadException
     try:
+        with warnings.catch_warnings(record=True) as w:
+            clf.fit(vecs[train_idxs], labels[train_idxs])
+            for warning in w:
+                if issubclass(warning.category, ConvergenceWarning):
+                    limit_reached = True
         res = fm.scores(
                 vecs[test_idxs], labels[test_idxs], groups[test_idxs],
                 clf=clf
         )
-    except ValueError as e:
-        if e.message.startswith('Expected n_neighbors <= n_samples'):
-            logger.warning(
-                '%s: param %d/%d: CV split %d/%d: %s\nparams: %s',
-                fm.name, params_number, n_params, split, n_splits,
-                'knn n_neighbors <= n_samples, returning -1',
-                params
-            )
-            res = [-1]
-        else:
-            raise
+    except Exception as e:
+        logger.warning(
+            '%s: param %d/%d: CV split %d/%d: caused an exception\nparams: %s',
+            fm.name, params_number, n_params, split, n_splits, params,
+            exc_info=1
+        )
+        res = [-1]
     timer_diff = datetime.utcnow() - timer_start
     _lvl = logging.DEBUG
     reasons = []
@@ -196,7 +193,7 @@ def weight_multiplier_gpprec(X, fm):
 
 class FusionModel(Fusion):
     name = 'FusionModel'
-    train_on_ratios = False  # e.g., False for classifiers, True for regrossors
+    train_on_ratios = False  # e.g., False for classifiers, True for regressors
 
     def __init__(self, name, clf, param_grid=None, parallelize_cv=True):
         self.name = name
@@ -392,6 +389,7 @@ class FusionModel(Fusion):
             self.name, vecs.shape[0], vecs.shape[1],
             np.sum(labels > 0), np.sum(labels == 0)
         )
+        score = 0
         if config.FUSION_PARAM_TUNING:
             # optimize MAP over splits on gtp groups
             param_candidates = list(self.param_grid)
@@ -412,26 +410,44 @@ class FusionModel(Fusion):
                 zip(scores, param_candidates), key=itemgetter(0), reverse=True,
             )[:10]
             self.grid_search_top_results = top_score_candidates[:10]
-            _, best_params = top_score_candidates[0]
-            logger.info(
-                '%s: grid search done, results for top 10 params:\n%s\n'
-                're-fitting on full train set with best params...',
-                self.name,
-                "\n".join([
-                    '  %2d. mean score (MAP): %.3f (std: %.3f): %s' % (
-                        i, mean, std, params)
-                    for i, ((mean, std), params) in enumerate(
-                        top_score_candidates[:10], 1)
-                ])
-            )
-            # refit classifier with best params
-            self.clf.set_params(**best_params)
-        self.clf.fit(vecs, labels)
-        self.model = self.clf
+            score, best_params = top_score_candidates[0]
 
-        score = np.mean(self.scores(vecs, labels, groups))
-        logger.info('%s: MAP on training set: %.3f', self.name, score)
-        self.save()
+            if score == -1:
+                logger.warning(
+                    '%s: grid search done, but each parameter combination '
+                    'caused an exception. Ignoring this fusion model.',
+                    self.name
+                )
+            else:
+                logger.info(
+                    '%s: grid search done, results for top 10 params:\n%s\n'
+                    're-fitting on full train set with best params...',
+                    self.name,
+                    "\n".join([
+                        '  %2d. mean score (MAP): %.3f (std: %.3f): %s' % (
+                            i, mean, std, params)
+                        for i, ((mean, std), params) in enumerate(
+                            top_score_candidates[:10], 1)
+                    ])
+                )
+                # refit classifier with best params
+                self.clf.set_params(**best_params)
+        if score > -1:
+            # will be set to -1 if all params caused errors
+            # noinspection PyBroadException
+            try:
+                self.clf.fit(vecs, labels)
+                self.model = self.clf
+
+                score = np.mean(self.scores(vecs, labels, groups))
+                logger.info('%s: MAP on training set: %.3f', self.name, score)
+                self.save()
+            except Exception:
+                logger.warning(
+                    "Training %s caused an exception. "
+                    "Ignoring this fusion model.",
+                    exc_info=1
+                )
 
     def fuse(self, gps, target_candidate_lists, targets_vecs=None):
         if not self.model and self._fuse_auto_load:
@@ -714,5 +730,3 @@ ranksvm_fm = [
 
 # TODO: more learning to rank methods?
 # https://github.com/ogrisel/notebooks/blob/master/Learning%20to%20Rank.ipynb
-
-
