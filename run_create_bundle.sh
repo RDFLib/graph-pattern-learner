@@ -180,13 +180,16 @@ fi
 bundle="$bundle$BUNDLE_POSTFIX"
 shift
 
-
-if [[ -d "venv" ]] ; then
-    . venv/bin/activate
+if [[ -z "$VIRTUAL_ENV" ]] ; then
+    if [[ -d "venv" ]] ; then
+        echo "activating virtualenv venv"
+        . venv/bin/activate
+    else
+        echo "WARNING: could not find virtualenv, trying to run with current env"
+    fi
 else
-    echo "WARNING: could not find virtualenv, trying to run with current env"
+    echo "re-using already active virtualenv"
 fi
-
 
 function cleanup_gp_learner() {
     if [[ -n "$resource_watcher_pid" ]] ; then
