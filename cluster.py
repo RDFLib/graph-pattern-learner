@@ -454,9 +454,10 @@ def cluster_gps_to_reduce_queries(
         logger.info(
             'reduced number of queries from %d to %d\n'
             'used variant: %s\n'
-            'expected precision sum loss ratio: %0.3f '
+            'you can skip this with --clustering_variant=%s\n'
+            'expected precision sum loss ratio: %0.3f \n'
             '(precision sum loss: %.2f)',
-            len(gps), len(reps), vn, prec_loss, prec_loss * gtp_scores.score
+            len(gps), len(reps), vn, vn, prec_loss, prec_loss * gtp_scores.score
         )
         gps = reps
     return gps
