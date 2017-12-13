@@ -9,11 +9,13 @@ Reads one source (TTL syntax) per line from stdin and writes one JSON line to
 stdout.
 """
 
+from collections import OrderedDict
 import json
 import logging
 import sys
 
 import SPARQLWrapper
+from splendid import chunker
 from rdflib.util import from_n3
 
 
@@ -50,6 +52,38 @@ def predict(sparql, timeout, gps, source,
         'graph_pattern_target_candidates': [sorted(tcs)[:mt] for tcs in gp_tcs],
         'fused_results': fused_results,
     }
+    return res
+
+
+def multi_predict(
+        sparql, timeout, gps, sources,
+        fusion_methods=None, max_results=0, max_target_candidates_per_gp=0):
+    from fusion import fuse_prediction_results
+    from gp_learner import predict_multi_target_candidates
+
+    gp_stcs = predict_multi_target_candidates(sparql, timeout, gps, sources)
+    res = []
+    for s in sources:
+        gp_tcs = [stcs[s] for stcs in gp_stcs]
+        fused_results = fuse_prediction_results(
+            gps,
+            gp_tcs,
+            fusion_methods
+        )
+        orig_length = max([len(v) for k, v in fused_results.items()])
+        if max_results > 0:
+            for k, v in fused_results.items():
+                del v[max_results:]
+        mt = max_target_candidates_per_gp
+        if mt < 1:
+            mt = None
+        # logger.info(gp_tcs)
+        res.append({
+            'source': s,
+            'orig_result_length': orig_length,
+            'graph_pattern_target_candidates': [sorted(tcs)[:mt] for tcs in gp_tcs],
+            'fused_results': fused_results,
+        })
     return res
 
 
@@ -124,6 +158,12 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--batch_predict",
+        help="will batch up to --BATCH_SIZE sources from stdin per query",
+        action="store_true"
+    )
+
+    parser.add_argument(
         "resdir",
         help="result directory of the trained model (overrides --RESDIR)",
         action="store",
@@ -157,6 +197,7 @@ def main(
         timeout,
         max_results,
         max_target_candidates_per_gp,
+        batch_predict,
         **_  # gulp remaining kwargs
 ):
     from gp_query import calibrate_query_timeout
@@ -181,22 +222,35 @@ def main(
     gps = cluster_gps_to_reduce_queries(
         gps, max_queries, gtp_scores, clustering_variant)
 
+    batch_size = config.BATCH_SIZE if batch_predict else 1
     # main loop
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        if line[0] not in '<"':
-            logger.error(
-                'expected inputs to start with < or ", but got: %s', line)
-            sys.exit(1)
-        source = from_n3(line)
+    for lines in chunker(sys.stdin, batch_size):
+        batch = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if line[0] not in '<"':
+                logger.error(
+                    'expected inputs to start with < or ", but got: %s', line)
+                sys.exit(1)
+            source = from_n3(line)
+            batch.append(source)
+        batch = list(OrderedDict.fromkeys(batch))
 
-        res = predict(
-            sparql, timeout, gps, source, fusion_methods,
-            max_results, max_target_candidates_per_gp
-        )
-        print(json.dumps(res))
+        if len(batch) == 1:
+            res = predict(
+                sparql, timeout, gps, batch[0], fusion_methods,
+                max_results, max_target_candidates_per_gp
+            )
+            print(json.dumps(res))
+        else:
+            res = multi_predict(
+                sparql, timeout, gps, batch, fusion_methods,
+                max_results, max_target_candidates_per_gp
+            )
+            for r in res:
+                print(json.dumps(r))
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import re
 import socket
 import sys
 from collections import Counter
+from collections import OrderedDict
 from collections import Sequence
 from collections import defaultdict
 from copy import deepcopy
@@ -498,6 +499,47 @@ def count_query(sparql, timeout, graph_pattern, source=None,
     except (SPARQLWrapperException, SAXParseException, URLError):
         res = timeout, {}
     return res
+
+
+@exception_stack_catcher
+def predict_multi_query(
+        sparql, timeout, graph_pattern, sources,
+        batch_size=None):
+    assert isinstance(graph_pattern, GraphPattern)
+    assert graph_pattern.complete()
+    t, res = _multi_query(
+        sparql, timeout, graph_pattern, sources, batch_size,
+        (SOURCE_VAR,), [(s,) for s in sources], {(s,): (s,) for s in sources},
+        _predict_res_init, _predict_chunk_q, _predict_chunk_res,
+    )
+    return t, OrderedDict([(s, set(tcs)) for s, tcs in res.items()])
+
+
+def _predict_res_init(sources):
+    return OrderedDict([(s, []) for s in sources])
+
+
+def _predict_chunk_q(gp, _vars, values_chunk):
+    assert isinstance(gp, GraphPattern)
+    return gp.to_sparql_select_query(
+        projection=[SOURCE_VAR, TARGET_VAR],
+        distinct=True,
+        values={_vars: values_chunk},
+        limit=config.PREDICTION_RESULT_LIMIT,
+    )
+
+
+def _predict_chunk_res(q_res, *_):
+    chunk_res = defaultdict(list)
+    res_rows_path = ['results', 'bindings']
+    bindings = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res, res_rows_path, default=[])
+    )
+    for row in bindings:
+        s = get_path(row, [SOURCE_VAR])
+        t = get_path(row, [TARGET_VAR])
+        chunk_res[s].append(t)
+    return chunk_res
 
 
 @exception_stack_catcher

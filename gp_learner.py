@@ -49,6 +49,7 @@ from fusion import train_fusion_models
 from gp_query import ask_multi_query
 from gp_query import calibrate_query_timeout
 from gp_query import combined_ask_count_multi_query
+from gp_query import predict_multi_query
 from gp_query import predict_query
 from gp_query import query_stats
 from gp_query import query_time_hard_exceeded
@@ -1502,6 +1503,44 @@ def predict_target_candidates(
     res = [target_candidates for _, target_candidates in results]
     if exclude_source:
         res = [tcs - {source} for tcs in res]
+    return res
+
+
+def predict_multi_target_candidates(
+        sparql, timeout, gps, sources, parallel=None, exclude_source=None):
+    """Uses the gps to predict target candidates for the given source.
+
+    :param sparql: SPARQLWrapper endpoint.
+    :param timeout: Timeout in seconds for each individual query (gp).
+    :param gps: A list of evaluated GraphPattern objects (fitness is used).
+    :param sources: source nodes for which to predict target candidates.
+    :param parallel: execute prediction queries in parallel?
+    :param exclude_source: remove targets that are source node?
+    :return: A list containing a dict of source to set(tcs) for each gp.
+    """
+    assert len(sources) > 1 and isinstance(sources[0], (URIRef, Literal))
+    if parallel is None:
+        parallel = config.PREDICTION_IN_PARALLEL
+    if exclude_source is None:
+        exclude_source = config.PREDICTION_EXCLUDE_SOURCE
+
+    pq = partial(
+        predict_multi_query,
+        sparql, timeout,
+        sources=sources,
+    )
+    map_ = parallel_map if parallel else map
+    results = map_(pq, gps)
+    # drop timings:
+    res = [stcs for _, stcs in results]
+    if exclude_source:
+        res = [
+            OrderedDict([
+                (s, tcs - {s})
+                for s, tcs in stcs.items()
+            ])
+            for stcs in res
+        ]
     return res
 
 
