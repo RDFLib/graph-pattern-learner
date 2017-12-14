@@ -424,16 +424,19 @@ def select_best_variant(variant_max_k_prec_loss_reps, log_top_k=1):
         for k, (prec_loss, reps) in k_ploss_reps.items()
     ])[:log_top_k]
     prec_loss, k, vn, reps = top_vars[0]
-    logger.info(
-        'selected query reduction variant:\n'
-        '%s' +
-        ('\nbetter than these follow-ups:\n%s' if log_top_k > 1 else '%s'),
-        ' -> precision loss: %0.3f with %d queries: %s' % (prec_loss, k, vn),
-        '\n'.join([
+    msg = (
+        'selected query reduction variant: '
+        '(you can manually select it with --clustering_variant=%s)\n'
+        ' -> precision loss: %0.3f with %d queries: %s' % (
+            vn, prec_loss, k, vn
+        )
+    )
+    if log_top_k > 1:
+        msg += '\nbetter than these follow-ups:\n' + '\n'.join([
             '    precision loss: %0.3f with %d queries: %s' % (_pl, _k, _vn)
             for _pl, _k, _vn, _ in top_vars[1:]
         ])
-    )
+    logger.info(msg)
     return prec_loss, k, vn, reps
 
 
@@ -454,10 +457,9 @@ def cluster_gps_to_reduce_queries(
         logger.info(
             'reduced number of queries from %d to %d\n'
             'used variant: %s\n'
-            'you can skip this with --clustering_variant=%s\n'
             'expected precision sum loss ratio: %0.3f \n'
             '(precision sum loss: %.2f)',
-            len(gps), len(reps), vn, vn, prec_loss, prec_loss * gtp_scores.score
+            len(gps), len(reps), vn, prec_loss, prec_loss * gtp_scores.score
         )
         gps = reps
     return gps
