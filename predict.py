@@ -13,6 +13,8 @@ from collections import OrderedDict
 import json
 import logging
 import sys
+import utils
+import time
 
 import SPARQLWrapper
 from splendid import chunker
@@ -119,6 +121,13 @@ def parse_args():
         default=None,
     )
     parser.add_argument(
+        "--drop_bad_uris",
+        help="URIs that cannot be curified are ignored",
+        action="store",
+        type=bool,
+        default=False,
+    )
+    parser.add_argument(
         "--fusion_methods",
         help="Which fusion methods to use. During prediction, each of "
              "the learned patterns can generate a list of target candidates. "
@@ -198,6 +207,7 @@ def main(
         max_results,
         max_target_candidates_per_gp,
         batch_predict,
+        drop_bad_uris,
         **_  # gulp remaining kwargs
 ):
     from gp_query import calibrate_query_timeout
@@ -222,6 +232,8 @@ def main(
     gps = cluster_gps_to_reduce_queries(
         gps, max_queries, gtp_scores, clustering_variant)
 
+    processed = 0
+    start = time.time()
     batch_size = config.BATCH_SIZE if batch_predict else 1
     # main loop
     for lines in chunker(sys.stdin, batch_size):
@@ -230,6 +242,13 @@ def main(
             line = line.strip()
             if not line:
                 continue
+            if drop_bad_uris:
+                try:
+                    source = from_n3(line)
+                    utils.curify(source)
+                except:
+                    logger.warning('Warning: Could not curify URI %s! Skip.', line)
+                    continue
             if line[0] not in '<"':
                 logger.error(
                     'expected inputs to start with < or ", but got: %s', line)
@@ -238,7 +257,9 @@ def main(
             batch.append(source)
         batch = list(OrderedDict.fromkeys(batch))
 
-        if len(batch) == 1:
+        if len(batch) == 0:
+            pass
+        elif len(batch) == 1:
             res = predict(
                 sparql, timeout, gps, batch[0], fusion_methods,
                 max_results, max_target_candidates_per_gp
@@ -252,6 +273,8 @@ def main(
             for r in res:
                 print(json.dumps(r))
 
+        processed += len(batch)
+        logger.info('Have processed %d URIs now. Took %s sec', processed, time.time()-start)
 
 if __name__ == "__main__":
     logger.info('init run: origin')
