@@ -83,7 +83,8 @@ def multi_predict(
         res.append({
             'source': s,
             'orig_result_length': orig_length,
-            'graph_pattern_target_candidates': [sorted(tcs)[:mt] for tcs in gp_tcs],
+            'graph_pattern_target_candidates': [
+                sorted(tcs)[:mt] for tcs in gp_tcs],
             'fused_results': fused_results,
         })
     return res
@@ -119,13 +120,6 @@ def parse_args():
         action="store",
         type=str,
         default=None,
-    )
-    parser.add_argument(
-        "--drop_bad_uris",
-        help="URIs that cannot be curified are ignored",
-        action="store",
-        type=bool,
-        default=False,
     )
     parser.add_argument(
         "--fusion_methods",
@@ -169,7 +163,12 @@ def parse_args():
     parser.add_argument(
         "--batch_predict",
         help="will batch up to --BATCH_SIZE sources from stdin per query",
-        action="store_true"
+        action="store_true",
+    )
+    parser.add_argument(
+        "--drop_bad_uris",
+        help="URIs that cannot be curified are ignored",
+        action="store_true",
     )
 
     parser.add_argument(
@@ -194,7 +193,6 @@ def parse_args():
     config.finalize(prog_args)
 
     return prog_args
-
 
 
 def main(
@@ -243,11 +241,13 @@ def main(
             if not line:
                 continue
             if drop_bad_uris:
+                # noinspection PyBroadException
                 try:
                     source = from_n3(line)
                     utils.curify(source)
-                except:
-                    logger.warning('Warning: Could not curify URI %s! Skip.', line)
+                except Exception:
+                    logger.warning(
+                        'Warning: Could not curify URI %s! Skip.', line)
                     continue
             if line[0] not in '<"':
                 logger.error(
@@ -274,7 +274,10 @@ def main(
                 print(json.dumps(r))
 
         processed += len(batch)
-        logger.info('Have processed %d URIs now. Took %s sec', processed, time.time()-start)
+        logger.info(
+            'Have processed %d URIs now. Took %s sec',
+            processed, time.time()-start)
+
 
 if __name__ == "__main__":
     logger.info('init run: origin')
