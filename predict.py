@@ -29,12 +29,12 @@ import logging_config
 logger = logging.getLogger(__name__)
 
 
-def predict(sparql, timeout, gps, source,
-            fusion_methods=None, max_results=0, max_target_candidates_per_gp=0):
+def _result_bundle(
+        gps, source, gp_tcs,
+        fusion_methods=None, max_results=0, max_target_candidates_per_gp=0,
+):
     from fusion import fuse_prediction_results
-    from gp_learner import predict_target_candidates
 
-    gp_tcs = predict_target_candidates(sparql, timeout, gps, source)
     fused_results = fuse_prediction_results(
         gps,
         gp_tcs,
@@ -57,36 +57,32 @@ def predict(sparql, timeout, gps, source,
     return res
 
 
+def predict(
+        sparql, timeout, gps, source,
+        fusion_methods=None, max_results=0, max_target_candidates_per_gp=0,
+):
+    from gp_learner import predict_target_candidates
+    gp_tcs = predict_target_candidates(sparql, timeout, gps, source)
+    return _result_bundle(
+        gps, source, gp_tcs,
+        fusion_methods, max_results, max_target_candidates_per_gp
+    )
+
+
 def multi_predict(
         sparql, timeout, gps, sources,
-        fusion_methods=None, max_results=0, max_target_candidates_per_gp=0):
-    from fusion import fuse_prediction_results
+        fusion_methods=None, max_results=0, max_target_candidates_per_gp=0,
+):
     from gp_learner import predict_multi_target_candidates
 
     gp_stcs = predict_multi_target_candidates(sparql, timeout, gps, sources)
     res = []
-    for s in sources:
-        gp_tcs = [stcs[s] for stcs in gp_stcs]
-        fused_results = fuse_prediction_results(
-            gps,
-            gp_tcs,
-            fusion_methods
-        )
-        orig_length = max([len(v) for k, v in fused_results.items()])
-        if max_results > 0:
-            for k, v in fused_results.items():
-                del v[max_results:]
-        mt = max_target_candidates_per_gp
-        if mt < 1:
-            mt = None
-        # logger.info(gp_tcs)
-        res.append({
-            'source': s,
-            'orig_result_length': orig_length,
-            'graph_pattern_target_candidates': [
-                sorted(tcs)[:mt] for tcs in gp_tcs],
-            'fused_results': fused_results,
-        })
+    for source in sources:
+        gp_tcs = [stcs[source] for stcs in gp_stcs]
+        res.append(_result_bundle(
+            gps, source, gp_tcs,
+            fusion_methods, max_results, max_target_candidates_per_gp
+        ))
     return res
 
 
@@ -265,6 +261,10 @@ def main(
                 max_results, max_target_candidates_per_gp
             )
             print(json.dumps(res))
+            logger.info(
+                'Predicted %d target candidates for %s',
+                res['orig_result_length'], res['source']
+            )
         else:
             res = multi_predict(
                 sparql, timeout, gps, batch, fusion_methods,
@@ -272,6 +272,11 @@ def main(
             )
             for r in res:
                 print(json.dumps(r))
+            logger.info('\n'.join([
+                'Predicted %d target candidates for %s' % (
+                    r['orig_result_length'], r['source']
+                ) for r in res
+            ]))
 
         processed += len(batch)
         logger.info(
