@@ -148,8 +148,8 @@ def canonicalize_rdf_cg_to_gp(cg):
 def canonicalize_sparql_bgp(gp, fixed_vars=None):
     """Returns a canonical basic graph pattern (BGP) with canonical var names.
 
-    :param gp: a GraphPattern in form of a list of triples with Variables
-    :param fixed_vars:
+    :param gp: a GraphPattern in form of a list of triples with Variables.
+    :param fixed_vars: A set of variables that should not be canonicalized.
     :return: A canonical GraphPattern as list with Variables renamed.
 
     >>> U = URIRef
