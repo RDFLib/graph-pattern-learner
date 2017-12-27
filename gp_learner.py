@@ -285,7 +285,7 @@ def mate_helper(
     assert isinstance(overlap, set)
     assert isinstance(delta_dom, set)
     assert isinstance(delta_other, set)
-    for i in range(retries):
+    for _ in range(retries):
         overlap_part = [t for t in overlap if random.random() < pb_overlap]
         dom_part = [t for t in delta_dom if random.random() < pb_dom]
         other_part = [t for t in delta_other if random.random() < pb_other]
@@ -629,6 +629,10 @@ def mutate_fix_var(
     fitness. By randomizing the subset size, we will eventually (and more
     likely) select other combinations of remaining GTPs.
 
+    :param sparql: SPARQLWrapper endpoint.
+    :param timeout: Timeout in seconds for each individual query (gp).
+    :param gtp_scores: Current GTPScores object for sampling.
+    :param child: a graph pattern to mutate.
     :param gtp_sample_max_n: Maximum GTPs subset size to base fixations on.
     :param rand_var: If given uses this variable instead of a random one.
     :param sample_max_n: Maximum number of children.

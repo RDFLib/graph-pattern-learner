@@ -359,7 +359,7 @@ def expected_precision_loss_by_query_reduction(
     """
     max_score = gtp_scores.score
     variant_max_k_prec_loss_reps = defaultdict(OrderedDict)
-    for max_k_idx, max_k in enumerate(max_ks):
+    for max_k in max_ks:
         # TODO: try other (non clustering) algorithms to improve set coverage
         # TODO: picking fittest representative might be non-optimal solution
         cluster_variants = make_cluster_variants_for_gps_by_precision(
@@ -381,8 +381,8 @@ def expected_precision_loss_by_query_reduction(
                 'Precision loss for max %d requests in clustering %s: %0.3f',
                 max_k, cv_name, lost_precision
             )
-            variant_max_k_prec_loss_reps[cv_name][max_k] = \
-                (lost_precision / max_score, gp_reps)
+            variant_max_k_prec_loss_reps[cv_name][max_k] = (
+                lost_precision / max_score, gp_reps)
 
     log_msg = ['Best clusterings (least precision loss) per k requests:']
     for k in max_ks:

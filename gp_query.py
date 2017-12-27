@@ -165,6 +165,8 @@ def query_stats(guard):
                     )
                 _query_stats_last_adapt = deepcopy(_query_stats)
         return _query_stats, bs
+
+
 _query_stats = _QueryStats()
 _query_stats_last_adapt = _QueryStats()
 
@@ -303,7 +305,7 @@ def _exception_closes_worker_guard(func):
                 closed.pop()
         try:
             return func(*args, **kwds)
-        except:
+        except Exception:
             closed.append(datetime.utcnow())
             raise
     return _multi_query_wrapper

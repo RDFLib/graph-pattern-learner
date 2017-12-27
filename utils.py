@@ -61,7 +61,8 @@ class URIShortener(object):
             self.prefixes[prefix] = ns_n3
         return res
 
-    def decurify(self, n3_str):
+    @staticmethod
+    def decurify(n3_str):
         return decurify(n3_str)
 
     @staticmethod

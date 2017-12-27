@@ -99,7 +99,7 @@ def crossval_fm_score_single_split(
                 vecs[test_idxs], labels[test_idxs], groups[test_idxs],
                 clf=clf
         )
-    except Exception as e:
+    except Exception:
         logger.warning(
             '%s: param %d/%d: CV split %d/%d: caused an exception\nparams: %s',
             fm.name, params_number, n_params, split, n_splits, params,

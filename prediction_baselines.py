@@ -185,7 +185,7 @@ def predict_target_with_milne_witten(
             / (lN - log(min(s_indeg, t_indeg)))
         )
         scores[t] = mw
-    res = scores.most_common()
+    # res = scores.most_common()
     # for t, mw in res[:10]:
     #     print('\t', mw, t)
     return scores.most_common()
