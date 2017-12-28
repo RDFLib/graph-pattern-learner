@@ -399,7 +399,7 @@ def expected_precision_loss_by_query_reduction(
     for cv_name, k_ploss_reps in sorted(variant_max_k_prec_loss_reps.items()):
         log_msg += [cv_name]
         for k, (prec_loss, _) in k_ploss_reps.items():
-            log_msg += ['  max_k: %2d, loss: %0.3f' % (k, prec_loss)]
+            log_msg += ['  max_k: %3d, loss: %0.3f' % (k, prec_loss)]
         if plot_precision_losses_over_k:
             plt.plot(
                 [0] + max_ks,
