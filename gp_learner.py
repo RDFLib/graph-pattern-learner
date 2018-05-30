@@ -544,7 +544,7 @@ def mutate_increase_dist(child):
 
 
 def mutate_fix_var_filter(item_counts):
-    """Filters results for fix var mutation.
+    """Filters results of fix var mutation in-place.
 
     Excludes:
     - too long literals
