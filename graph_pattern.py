@@ -846,6 +846,7 @@ class GraphPattern(tuple):
             'triples': self._sparql_triples_part('               '),
             'limit': limit,
         }
+        print(res)
         return self._sparql_prefix(textwrap.dedent(res))
 
     def to_dict(self):
