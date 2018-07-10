@@ -636,6 +636,52 @@ class GraphPattern(tuple):
         res = textwrap.dedent(res)
         return self._sparql_prefix(res)
 
+    def to_sparql_select_sample_query(
+            self,
+            values,
+            projection=None,
+            limit=None,
+            sample_var=None
+    ):
+        """Generates a SPARQL select sample query from the graph pattern.
+
+        Examples:
+        TODO
+
+        Args:
+            values: a dict mapping a variable tuple to a list of binding tuples,
+                e.g. {(v1, v2): [(uri1, uri2), (uri3, uri4), ...]}
+            projection: which variables to select on, by default all vars.
+            limit: integer to limit the result size
+            sample_var: the variable to sample over
+        """
+        assert self.vars_in_graph, \
+            "tried to get sparql for pattern without vars: %s" % (self,)
+
+        if projection is None:
+            projection = sorted([v for v in self.vars_in_graph])
+
+        if sample_var is None:
+            sample_var = random.choice(projection)
+        logger.info(sample_var)
+
+        projection.remove(sample_var)
+
+        res = "SELECT %(samp)s %(proj)s WHERE {\n%(qpp)s}\n%(lim)s" % {
+            'samp': (' SAMPLE(%s) as %s' % (
+                ''.join(sample_var.n3()),
+                ''.join(sample_var.n3())
+            )),
+            'proj': ' '.join([v.n3() for v in projection]),
+            'qpp': self._sparql_query_pattern_part(
+                values=values,
+                indent=' ',
+            ),
+            'lim': ('LIMIT %d\n' % limit) if limit is not None else '',
+        }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
     def to_sparql_ask_query(
             self,
             bind=None,
@@ -846,7 +892,6 @@ class GraphPattern(tuple):
             'triples': self._sparql_triples_part('               '),
             'limit': limit,
         }
-        print(res)
         return self._sparql_prefix(textwrap.dedent(res))
 
     def to_dict(self):

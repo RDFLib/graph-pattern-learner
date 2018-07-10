@@ -8,11 +8,17 @@ einmal über die results aus mutate_fix_var
 """
 
 import logging
+from collections import defaultdict
 from collections import OrderedDict
 from os import getenv
 
 import SPARQLWrapper
+from splendid import get_path
+from splendid import time_func
+import socket
 import rdflib
+from rdflib import BNode
+from rdflib import Literal
 from rdflib import URIRef
 from rdflib import Variable
 
@@ -30,6 +36,7 @@ from ground_truth_tools import get_semantic_associations
 from ground_truth_tools import split_training_test_set
 from gtp_scores import GTPScores
 from serialization import print_graph_pattern
+from utils import sparql_json_result_bindings_to_rdflib
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +75,14 @@ gp_4 = GraphPattern([
     (TARGET_VAR, e, d)
 ])
 
+gp_5 = GraphPattern([
+    (SOURCE_VAR, a, c),
+    (TARGET_VAR, URIRef('http://dbpedia.org/ontology/thumbnail'), d),
+    (TARGET_VAR, URIRef('http://dbpedia.org/property/image'), b),
+    (c, URIRef('http://dbpedia.org/ontology/wikiPageWikiLink'), SOURCE_VAR),
+    (c, URIRef('http://purl.org/linguistics/gold/hypernym'), TARGET_VAR)
+])
+
 ground_truth_pairs_1 = [
     (dbp['Berlin'], dbp['Germany']),
     (dbp['Hamburg'], dbp['Germany']),
@@ -87,7 +102,7 @@ ground_truth_pairs_1 = [
 
 ground_truth_pairs_2 = get_semantic_associations()
 ground_truth_pairs_2, _ = split_training_test_set(ground_truth_pairs_2)
-ground_truth_pairs_2 = ground_truth_pairs_2[1:10]
+ground_truth_pairs_2 = ground_truth_pairs_2[1:100]
 
 ground_truth_pairs_3 = [
     (dbp['Barrister'], dbp['Law']),
@@ -107,6 +122,7 @@ gtp_scores_4 = GTPScores(ground_truth_pairs_4)
 
 sparql = SPARQLWrapper.SPARQLWrapper(
     getenv('SPARQL_ENDPOINT', 'http://dbpedia.org/sparql'))
+#sparql = SPARQLWrapper.SPARQLWrapper(SPARQL_ENDPOINT)
 try:
     timeout = max(5, calibrate_query_timeout(sparql))  # 5s for warmup
 except IOError:
@@ -152,8 +168,7 @@ def test_eval_list_double(gtp_scores, gp, r_1=None, r_2=None):
     for gp in res_list:
         print_graph_pattern(gp, print_matching_node_pairs=0)
 
-
 if __name__ == '__main__':
-    #test_eval_list_double(gtp_scores_1, gp_2)
-
-    test_eval_list_double(gtp_scores_4, gp_4, a, e)
+    test_steps(ground_truth_pairs_2)
+    #values = {(SOURCE_VAR, TARGET_VAR): ground_truth_pairs_1}
+    #print(gp_1.to_sparql_select_sample_query(values))
