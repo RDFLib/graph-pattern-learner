@@ -74,6 +74,7 @@ from serialization import load_predicted_target_candidates
 from serialization import save_predicted_target_candidates
 from serialization import find_run_result
 from serialization import format_graph_pattern
+from serialization import load_init_patterns
 from serialization import load_results
 from serialization import pause_if_signaled_by_file
 from serialization import print_graph_pattern
@@ -1054,12 +1055,24 @@ def generate_init_population(
         sparql, timeout, gtp_scores,
         pb_fv=config.INIT_POPPB_FV,
         n=config.INIT_POPPB_FV_N,
+        init_patterns=None,
+        pb_init_pattern=config.INIT_POPPB_INIT_PAT,
 ):
     logger.info('generating init population of seed size %d', config.POPSIZE)
     population = []
 
     # Variable patterns:
     var_pats = generate_variable_patterns(config.POPSIZE)
+
+    if init_patterns:
+        # replace var pats with random ones from init_patterns according to prob
+        var_pats = [
+            p for p in var_pats
+            if random.random() > pb_init_pattern
+        ]
+        for _ in range(len(var_pats), config.POPSIZE):
+            var_pats.append(random.choice(init_patterns).copy())
+        random.shuffle(var_pats)
 
     # initial run of mutate_fix_var to instantiate many of the variable patterns
     # TODO: maybe loop this? (why only try to fix one var?)
@@ -1210,6 +1223,7 @@ def check_quick_stop(
 
 def find_graph_patterns(
         sparql, run, gtp_scores,
+        init_patterns=None,
         user_callback_per_generation=None,
 ):
     timeout = calibrate_query_timeout(sparql)
@@ -1237,6 +1251,7 @@ def find_graph_patterns(
 
     population = generate_init_population(
         sparql, timeout, gtp_scores,
+        init_patterns=init_patterns,
     )
 
     # noinspection PyTypeChecker
@@ -1270,6 +1285,7 @@ def _find_graph_pattern_coverage_run(
         coverage_counts,
         gtp_scores,
         patterns,
+        init_patterns=None,
         user_callback_per_generation=None,
         user_callback_per_run=None,
 ):
@@ -1277,6 +1293,7 @@ def _find_graph_pattern_coverage_run(
 
     ngen, res_pop, hall_of_fame, toolbox = find_graph_patterns(
         sparql, run, gtp_scores,
+        init_patterns=init_patterns,
         user_callback_per_generation=user_callback_per_generation,
     )
 
@@ -1384,6 +1401,7 @@ def _find_graph_pattern_coverage_run(
 def find_graph_pattern_coverage(
         sparql,
         ground_truth_pairs,
+        init_patterns=None,
         min_score=config.MIN_SCORE,
         min_remaining_gain=config.MIN_REMAINING_GAIN,
         max_runs=config.NRUNS,
@@ -1430,6 +1448,7 @@ def find_graph_pattern_coverage(
                     coverage_counts,
                     gtp_scores,
                     patterns,
+                    init_patterns=init_patterns,
                     user_callback_per_generation=user_callback_per_generation,
                     user_callback_per_run=user_callback_per_run,
                 )
@@ -1663,6 +1682,7 @@ def main(
         splitting_variant='random',
         train_filename=None,
         test_filename=None,
+        init_patterns_filename=None,
         print_train_test_sets=True,
         reset=False,
         print_topn_raw_patterns=0,
@@ -1734,12 +1754,18 @@ def main(
     # setup node expander
     sparql = SPARQLWrapper.SPARQLWrapper(sparql_endpoint)
 
+    init_patterns = None
+    if init_patterns_filename:
+        init_patterns = load_init_patterns(init_patterns_filename)
 
     if reset:
         remove_old_result_files()
     last_res = find_last_result()
     if not last_res:
-        res = find_graph_pattern_coverage(sparql, semantic_associations)
+        res = find_graph_pattern_coverage(
+            sparql, semantic_associations,
+            init_patterns=init_patterns,
+        )
         result_patterns, coverage_counts, gtp_scores = res
         sys.stderr.flush()
 

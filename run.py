@@ -73,6 +73,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--init_patterns_filename",
+        help="file with nicer patterns to be used in init population",
+        action="store",
+        default=None,
+    )
+
+    parser.add_argument(
         "--reset",
         help="remove previous training's result files if existing (otherwise "
              "the previous training's model will be loaded. If the training "

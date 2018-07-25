@@ -61,6 +61,7 @@ INIT_POP_LEN_ALPHA = 5.  # alpha value in a length beta distribution
 INIT_POP_LEN_BETA = 30.  # beta value in a length beta distribution
 INIT_POPPB_FV = 0.9  # probability to fix a variable in init population
 INIT_POPPB_FV_N = 5  # allow up to n instantiations for each fixed variable
+INIT_POPPB_INIT_PAT = .75  # probability to use pattern from init patterns file
 VARPAT_REINTRO = 10  # number of variable patterns re-introduced each generation
 HOFPAT_REINTRO = 10  # number of hall of fame patterns re-introduced each gen
 LOGLVL_EVAL = 10  # loglvl for eval logs (10: DEBUG, 20: INFO)

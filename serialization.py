@@ -354,6 +354,16 @@ def print_results(
     )
 
 
+def load_init_patterns(fn):
+    with open(fn, 'r') as f:
+        data = json.load(f)
+    init_patterns = [
+        GraphPattern.from_dict(d)
+        for d in data
+    ]
+    return init_patterns
+
+
 def save_predicted_target_candidates(gps, gtps, gtp_gp_tcs):
     fn = path.join(
         config.RESDIR, 'predicted_train_target_candidates.pkl.gz')
