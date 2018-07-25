@@ -1251,6 +1251,11 @@ def find_graph_patterns(
 
 
 def calc_min_fitness(gtp_scores, min_score):
+    """Calculates the minimum desired fitness in the current run.
+
+    In each run, the fitness tuple has a first component "remains", which is
+    constant. The score is what we actually want to set to min_score.
+    """
     min_fitness = GPFitnessTuple(
         remains=gtp_scores.remaining_gain,
         score=min_score,
