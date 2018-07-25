@@ -51,13 +51,13 @@ if __name__ == "__main__":
         "Provide individual source target pair files for training and testing. "
         "If only one is given, make sure that --predict is set accordingly."
     )
-    gt_train_filename = gt_manual_split.add_argument(
+    gt_manual_split.add_argument(
         "--train_filename",
         help="file with source target pairs for training",
         action="store",
         default=None,
     )
-    gt_test_filename = gt_manual_split.add_argument(
+    gt_manual_split.add_argument(
         "--test_filename",
         help="file with source target pairs for testing",
         action="store",
