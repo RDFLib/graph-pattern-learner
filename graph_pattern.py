@@ -34,7 +34,6 @@ from utils import URIShortener
 
 logger = logging.getLogger(__name__)
 
-
 RANDOM_VAR_LEN = 5  # so in total we have 62**5=916132832 different random vars
 RANDOM_VAR_PREFIX = 'vr'
 SOURCE_VAR = Variable('source')
@@ -241,10 +240,10 @@ def canonicalize(gp, shorten_varnames=True):
     cgp = GraphPattern(cbgp, mapping=mapping)
 
     if not (
-        len(gp) == len(cbgp) == len(cgp)
-        and len(gp.nodes) == len(cgp.nodes)
-        and len(gp.edges) == len(cgp.edges)
-        and sorted(gp.identifier_counts().values()) ==
+            len(gp) == len(cbgp) == len(cgp)
+            and len(gp.nodes) == len(cgp.nodes)
+            and len(gp.edges) == len(cgp.edges)
+            and sorted(gp.identifier_counts().values()) ==
             sorted(cgp.identifier_counts().values())
     ):
         # canonicalization should never change any of the features above, but it
@@ -432,8 +431,8 @@ class GraphPattern(tuple):
             [(s, p, o)
              for s, p, o in self
              if p not in identifiers and
-                s not in identifiers and
-                o not in identifiers
+             s not in identifiers and
+             o not in identifiers
              ]
         )
 
@@ -448,7 +447,7 @@ class GraphPattern(tuple):
         :param vars_only: Only return counts for vars.
         :return: Counter of all identifiers in this graph pattern.
         """
-        assert not(exclude_vars and vars_only)
+        assert not (exclude_vars and vars_only)
         ids = Counter([i for t in self for i in t])
         if exclude_vars:
             for i in self.vars_in_graph:
@@ -639,6 +638,7 @@ class GraphPattern(tuple):
     def to_sparql_select_sample_query(
             self,
             values,
+            values_s_t=None,
             projection=None,
             limit=None,
             sample_var=None
@@ -651,6 +651,7 @@ class GraphPattern(tuple):
         Args:
             values: a dict mapping a variable tuple to a list of binding tuples,
                 e.g. {(v1, v2): [(uri1, uri2), (uri3, uri4), ...]}
+            values_s_t: TODO
             projection: which variables to select on, by default all vars.
             limit: integer to limit the result size
             sample_var: the variable to sample over
@@ -661,24 +662,286 @@ class GraphPattern(tuple):
         if projection is None:
             projection = sorted([v for v in self.vars_in_graph])
 
-        if sample_var is None:
-            sample_var = random.choice(projection)
-        logger.info(sample_var)
+        # if sample_var is None:
+        #     sample_var = random.choice(projection)
+        # logger.info(sample_var)
 
-        projection.remove(sample_var)
+        if sample_var:
+            projection.remove(sample_var)
 
-        res = "SELECT %(samp)s %(proj)s WHERE {\n%(qpp)s}\n%(lim)s" % {
-            'samp': (' SAMPLE(%s) as %s' % (
-                ''.join(sample_var.n3()),
-                ''.join(sample_var.n3())
-            )),
-            'proj': ' '.join([v.n3() for v in projection]),
-            'qpp': self._sparql_query_pattern_part(
-                values=values,
-                indent=' ',
-            ),
-            'lim': ('LIMIT %d\n' % limit) if limit is not None else '',
-        }
+        res = "SELECT %(samp)s %(proj)s WHERE {\n" \
+              "%(valst)s\n" \
+              "%(qpp)s}\n" \
+              "%(lim)s" % {
+                  'samp': (' SAMPLE(%s) as %s' % (
+                      ''.join(sample_var.n3()),
+                      ''.join(sample_var.n3())
+                  )) if sample_var else '',
+                  'proj': ' '.join([v.n3() for v in projection]),
+                  'valst': self._sparql_values_part(values=values_s_t, indent=' ')
+                  if values_s_t is not None else '',
+                  'qpp': self._sparql_query_pattern_part(
+                      values=values,
+                      indent=' ',
+                  ),
+                  'lim': ('LIMIT %d\n' % limit) if limit is not None else '',
+              }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
+    def to_sparql_filter_by_count_in_out_query(
+            self,
+            values,
+            count_node,
+            in_out=None,
+            max_in=None,
+            max_out=None,
+            projection=None,
+            gp=None,
+            limit=None,
+            sample_var=None
+    ):
+        # TODO: Möglicherweise noch die Pfade aus dem gp_in rausfiltern, man
+        # will ja eher selten einen zusatzhop über einen schon vorhandenen
+        # Pfad finden
+
+        """Generates a SPARQL select query from the graph pattern.
+
+        Examples:
+        TODO
+
+        Args: TODO
+            values: a dict mapping a variable tuple to a list of binding tuples,
+                e.g. {(v1, v2): [(uri1, uri2), (uri3, uri4), ...]}
+            count_node: Node to filter over outgoing arcs.
+            in_out:
+            max_in:
+            max_out: max outgoing arcs
+            projection: which variables to select on, by default all vars.
+            gp:
+            limit: integer to limit the result size
+            sample_var: the variable to sample over
+        """
+        assert self.vars_in_graph, \
+            "tried to get sparql for pattern without vars: %s" % (self,)
+
+        if projection is None:
+            projection = sorted([v for v in self.vars_in_graph])
+        if sample_var:
+            projection.remove(sample_var)
+
+        if max_out is None:
+            max_out = 20
+        if max_in is None:
+            max_in = 20
+
+        if in_out not in ['in', 'out', 'inout']:
+            in_out = random.choice(['in', 'out', 'inout'])
+            logger.info('in_out was set on %s' % in_out)
+        count_out = Variable('cout')
+        count_in = Variable('cin')
+        rand_var_out = gen_random_var()
+        rand_var_in = gen_random_var()
+        if gp:
+            if in_out == 'out':
+                gp_ = GraphPattern(chain(self,
+                                         GraphPattern([
+                                             (count_node, count_out, rand_var_out)
+                                         ]),
+                                         gp))
+            elif in_out == 'in':
+                gp_ = GraphPattern(chain(self,
+                                         GraphPattern([
+                                             (rand_var_in, count_in, count_node)
+                                         ]),
+                                         gp))
+            else:  # TODO: Testen ob inout überhaupt passt
+                gp_ = GraphPattern(chain(self,
+                                         GraphPattern([
+                                             (rand_var_in, count_in, count_node),
+                                             (count_node, count_out, rand_var_out)
+                                         ]),
+                                         gp))
+        else:
+            if in_out == 'out':
+                gp_ = GraphPattern(chain(self,
+                                         GraphPattern([
+                                             (count_node, count_out, rand_var_out)
+                                         ])
+                                         ))
+            elif in_out == 'in':
+                gp_ = GraphPattern(chain(self,
+                                         GraphPattern([
+                                             (rand_var_in, count_in, count_node)
+                                         ])
+                                         ))
+            else:  # TODO: Testen ob inout überhaupt passt
+                gp_ = GraphPattern(chain(self,
+                                         GraphPattern([
+                                             (rand_var_in, count_in, count_node),
+                                             (count_node, count_out, rand_var_out)
+                                         ])
+                                         ))
+
+        res = "SELECT %(samp)s %(proj)s %(count)s WHERE " \
+              "{\n%(qpp)s}\n%(gb)s\n%(hv)s\n%(lim)s" % {
+                  'samp': (' SAMPLE(%s) as %s' % (
+                      ''.join(sample_var.n3()),
+                      ''.join(sample_var.n3())
+                  )) if sample_var else '',
+                  'proj': ' '.join([v.n3() for v in projection]),
+                  'count': (' COUNT(%s) as %s' % (
+                      ''.join(count_out.n3()),
+                      ''.join(count_out.n3()))) if in_out == 'out' else
+                  (' COUNT(%s) as %s' % (
+                      ''.join(count_in.n3()),
+                      ''.join(count_in.n3()))) if in_out == 'in' else
+                  (' COUNT(%s) as %s COUNT(%s) as %s' % (
+                      ''.join(count_out.n3()),
+                      ''.join(count_out.n3()),
+                      ''.join(count_in.n3()),
+                      ''.join(count_in.n3())
+                  )),
+                  'qpp': gp_._sparql_query_pattern_part(
+                      values=values,
+                      indent=' ',
+                  ),
+                  'gb': ('GROUP BY ' + ' '.join([v.n3() for v in projection])),
+                  'hv': ('HAVING (COUNT(%s)<%s)' % (
+                      ''.join(count_out.n3()),
+                      str(max_out))) if in_out == 'out' else
+                  ('HAVING (COUNT(%s)<%s)' % (
+                      ''.join(count_in.n3()),
+                      str(max_in))) if in_out == 'in' else
+                  ('HAVING (COUNT(%s)<%s&&COUNT(%s)<%s)' % (
+                      ''.join(count_out.n3()),
+                      str(max_out),
+                      ''.join(count_in.n3()),
+                      str(max_in)
+                  )),
+                  'lim': ('LIMIT %d\n' % limit) if limit is not None else '',
+              }
+        res = textwrap.dedent(res)
+        return gp_._sparql_prefix(res)
+
+    def to_sparql_useful_path_query(
+            self,
+            var_to_fix,
+            var_to_count,
+            valueblocks,
+            steps,
+            startvar=None,
+            avglimit=10,
+            gp_in=False
+    ):
+        count_var_to_count = Variable('c' + ''.join(var_to_count))
+        avg_var_to_count = Variable('avgc' + ''.join(var_to_count))
+        if startvar is None:
+            startvar = SOURCE_VAR
+        res = "SELECT %(vtf)s (AVG(%(cvtc)s) as %(avtc)s) {\n" \
+              "SELECT %(stv)s %(vtf)s (COUNT (%(vtc)s) as %(cvtc)s) {\n" \
+              "%(val)s\n" \
+              "%(trip)s }\n" \
+              "GROUP BY %(stv)s %(vtf)s }\n" \
+              "GROUP BY %(vtf)s\n" \
+              "HAVING (AVG (%(cvtc)s) < %(avgl)s)" % {
+                  'vtf': ''.join(var_to_fix.n3()),
+                  'cvtc': ''.join(count_var_to_count.n3()),
+                  'avtc': ''.join(avg_var_to_count.n3()),
+                  'stv': ''.join(startvar.n3()),
+                  'vtc': ''.join(var_to_count.n3()),
+                  'val': ''.join([
+                      self._sparql_values_part(
+                          values=valueblocks[key], indent=' '
+                      ) for key in valueblocks
+                  ]),
+                  'trip': ''.join([
+                      step._sparql_triples_part(indent=' ') for step in steps
+                      # TODO: nicht auf private Methode zugreifen
+                  ]) + ''.join([
+                      self._sparql_triples_part(indent=' ') if gp_in else ''
+                  ]),
+                  'avgl': str(avglimit),
+              }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
+    def to_sparql_inst_query(
+            self,
+            hop,
+            valueblocks,
+            gp_help,
+            gp_in=False
+    ):
+        res = "SELECT %(vtf)s (COUNT (?source) as ?cst) {\n" \
+              "%(val)s\n" \
+              "%(trip)s }\n" \
+              "GROUP BY %(vtf)s\n" \
+              "HAVING (COUNT (?source) > 0)" % {
+                  'vtf': ' '.join([var.n3() for var in hop]),
+                  'val': ''.join([
+                      self._sparql_values_part(
+                          values=valueblocks[key], indent=' '
+                      ) for key in valueblocks
+                  ]),
+                  'trip': ''.join(gp_help._sparql_triples_part()) +
+                          # TODO: nicht auf private Methode zugreifen
+                          ''.join([
+                              self._sparql_triples_part(
+                                  indent=' '
+                              ) if gp_in else ''
+                          ]),
+              }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
+    # TODO: die normale inst durch diese hier ersetzen (sollte überall gehen)
+    def to_sparql_useful_path_inst_query(
+            self,
+            hop,
+            valueblocks,
+            steps,
+            gp_in=False
+    ):
+        res = "SELECT %(vtf)s (COUNT (?source) as ?cst) {\n" \
+              "%(val)s\n" \
+              "%(trip)s }\n" \
+              "GROUP BY %(vtf)s\n" \
+              "HAVING (COUNT (?source) > 0)" % {
+                  'vtf': ' '.join([var.n3() for var in hop]),
+                  'val': ''.join([
+                      self._sparql_values_part(
+                          values=valueblocks[key], indent=' '
+                      ) for key in valueblocks
+                  ]),
+                  'trip': ''.join([
+                      step._sparql_triples_part() for step in steps
+                      # TODO: nicht auf private Methode zugreifen
+                  ]) + ''.join([
+                      self._sparql_triples_part(indent=' ') if gp_in else ''
+                  ]),
+              }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
+    def to_sparql_precheck_query(
+            self,
+            values,
+            gp_in=False
+    ):
+        res = "SELECT * {\n" \
+              "%(val)s\n" \
+              "%(trip)s\n" \
+              "}\n" \
+              "LIMIT 1" % {
+                  'val': ''.join(
+                      self._sparql_values_part(values=values, indent=' ')
+                  ),
+                  'trip': ''.join(self._sparql_triples_part(indent=' ')) +
+                          ''.join([
+                              self._sparql_triples_part(indent=' ') if gp_in else ''
+                          ]),
+              }
         res = textwrap.dedent(res)
         return self._sparql_prefix(res)
 
@@ -702,9 +965,9 @@ class GraphPattern(tuple):
     ):
         assert bind is None or isinstance(bind, dict)
         assert values is None or (
-            isinstance(values, dict) and
-            isinstance(next(six.iterkeys(values)), Iterable) and
-            isinstance(next(six.itervalues(values)), Iterable)
+                isinstance(values, dict) and
+                isinstance(next(six.iterkeys(values)), Iterable) and
+                isinstance(next(six.itervalues(values)), Iterable)
         )
 
         res = ''
@@ -1088,7 +1351,6 @@ class GraphPatternStats(object):
         ]
         return res
 
-
     def prune_counts(self, below=2):
         lns = len(self.identifier_gt_node_sum)
         ln = len(self.identifier_gt_node_count)
@@ -1115,7 +1377,7 @@ class GraphPatternStats(object):
 
     def __str__(self):
         return '%s: pairs: %d, nodes: %d, Identifier counts:\n' \
-            'Pairs: %s\nNodes: %s' % (
-                self.__class__.__name__, len(self.gt_pairs), len(self.nodes),
-                self.identifier_gt_pair_count, self.identifier_gt_node_count
-            )
+               'Pairs: %s\nNodes: %s' % (
+                   self.__class__.__name__, len(self.gt_pairs), len(self.nodes),
+                   self.identifier_gt_pair_count, self.identifier_gt_node_count
+               )

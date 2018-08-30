@@ -8,6 +8,7 @@ und fix-var-mutation
 """
 
 import logging
+import random
 from collections import defaultdict
 from collections import OrderedDict
 from os import getenv
@@ -41,8 +42,8 @@ from utils import sparql_json_result_bindings_to_rdflib
 logger = logging.getLogger(__name__)
 
 sparql = SPARQLWrapper.SPARQLWrapper(SPARQL_ENDPOINT)
-#sparql = SPARQLWrapper.SPARQLWrapper(
-#    getenv('SPARQL_ENDPOINT', 'http://dbpedia.org/sparql'))
+# sparql = SPARQLWrapper.SPARQLWrapper(
+#     getenv('SPARQL_ENDPOINT', 'http://dbpedia.org/sparql'))
 try:
     timeout = max(5, calibrate_query_timeout(sparql))  # 5s for warmup
 except IOError:
@@ -113,7 +114,7 @@ ground_truth_pairs_1 = [
 
 ground_truth_pairs_2 = get_semantic_associations()
 ground_truth_pairs_2, _ = split_training_test_set(ground_truth_pairs_2)
-ground_truth_pairs_2 = ground_truth_pairs_2[1:100]
+ground_truth_pairs_2 = random.sample(ground_truth_pairs_2, 100)
 
 ground_truth_pairs_3 = [
     (dbp['Barrister'], dbp['Law']),
@@ -132,7 +133,104 @@ gtp_scores_3 = GTPScores(ground_truth_pairs_3)
 gtp_scores_4 = GTPScores(ground_truth_pairs_4)
 
 
-def test_steps(gtps):
+def test_count(gtps, max_out):
+    # values = {(SOURCE_VAR, TARGET_VAR): gtps} hier besser nur die sources
+    source_list = [(stp[0], ) for stp in gtps]
+    values = {(SOURCE_VAR, ): source_list}
+    gp1 = GraphPattern([(SOURCE_VAR, a, b)])
+    gp2 = GraphPattern([(b, c, TARGET_VAR)])
+    # SPARQL-Query die über eine Var aus gp1 random samplet
+    q = gp1.to_sparql_filter_by_count_out_query(
+        values=values, count_node=b, max_out=max_out, limit=200)
+    logger.info(q)
+    t, q_res1 = run_query(q)
+    logger.info(q_res1)
+    # Kreiere b_list in der die Ergebnisse für b "gespeichert" sind
+    # TODO: als Methode, die Listenform (Tupellistenform) der gefundenen
+    # Bindings zu gewünschten Variablen zurückgibt.
+    res_rows_path = ['results', 'bindings']
+    bind1 = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res1, res_rows_path, default=[])
+    )
+    b_list = []
+    for row in bind1:
+        x = get_path(row, [b])
+        y = (x, )
+        b_list.append(y)
+    logger.info('orig query took %.4f s, result:\n%s\n', t, b_list)
+    b_list[:] = [b_l for b_l in b_list if not list_remove_bool(b_l[0])]
+    b_list = list(set(b_list))
+    # Values für die nächste query: b_list
+    values = {(b, ): b_list}
+    # Query die über eine var aus gp2 random samplet mit values aus b_list
+    q = gp2.to_sparql_select_sample_query(values=values, limit=5000)
+    logger.info(q)
+    try:
+        t, q_res2 = run_query(q)
+    except:
+        return []
+    # Kreiere target_list, in der die "gefundenen" Targets vermerkt sind
+    bind2 = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res2, res_rows_path, default=[])
+    )
+    target_list = []
+    for row in bind2:
+        target_list.append(get_path(row, [TARGET_VAR]))
+    logger.info('orig query took %.4f s, result:\n%s\n', t, q_res2)
+    # Kreire gtps_2 in der alle gtps, deren targets in target_list enthalten
+    # sind, "gespeichert" werden
+    gtps_2 = []
+    for t in target_list:
+        for gtp in gtps:
+            if t == gtp[1]:
+                gtps_2.append(gtp)
+    logger.info(gtps_2)
+
+    # GraphPattern mit gefixten Pfaden aus den gefundenen gtp kreieren:
+    # TODO: Das ganze als Methode aus einem graph-pattern, den results und
+    # den stp
+    gp_list = []
+    for row2 in bind2:
+        for gtp in gtps:
+            if gtp[1] == get_path(row2, [TARGET_VAR]):
+                for row1 in bind1:
+                    if get_path(row1, [b]) == get_path(row2, [b]):
+                        gp_ = GraphPattern([
+                            (SOURCE_VAR, get_path(row1, [a]), b),
+                            (b, get_path(row2, [c]), TARGET_VAR)
+                        ])
+                        if gp_ not in gp_list:
+                            gp_list.append(gp_)
+
+    # gp3 = GraphPattern([
+    #     (SOURCE_VAR, a, b),
+    #     (b, c, TARGET_VAR)
+    # ])
+    gtp_scores = GTPScores(gtps)
+    # gtp_scores2 = GTPScores(gtps_2)
+
+    # # Fixe das pattern über die gefundenen gtps
+    # mfv2 = []
+    # if len(gtps_2) > 1:
+    #     mfv2 = mutate_fix_var(sparql, timeout, gtp_scores2, gp3)
+    #
+    # # lasse die gefundenen Pattern einmal durch die fix_var laufen
+    # mfv = []
+    # for gp_mfv2 in mfv2:
+    #     mfv_res = mutate_fix_var(sparql, timeout, gtp_scores, gp_mfv2)
+    #     for gp_res in mfv_res:
+    #         mfv.append(gp_res)
+    #
+    # # evaluiere die so gefundenen Pattern
+    # res_eval = eval_gp_list(gtp_scores, mfv)
+    # return res_eval
+
+    # evaluiere die gefixten pattern
+    res_eval = eval_gp_list(gtp_scores, gp_list)
+    return res_eval
+
+
+def test_sample(gtps):
     values = {(SOURCE_VAR, TARGET_VAR): gtps}
     gp1 = GraphPattern([(SOURCE_VAR, a, b)])
     gp2 = GraphPattern([(b, c, TARGET_VAR)])
@@ -140,16 +238,15 @@ def test_steps(gtps):
     # TODO: Query so verändern, dass nach count gefiltert wird (siehe log.txt)
     q = gp1.to_sparql_select_sample_query(values=values, limit=100)
     logger.info(q)
-    t, q_res = run_query(q)
-    logger.info(q_res)
+    t, q_res1 = run_query(q)
+    logger.info(q_res1)
     # Kreiere b_list in der die Ergebnisse für b "gespeichert" sind
-    # TODO speichere alles um später den Weg nachzuvollziehen
     res_rows_path = ['results', 'bindings']
-    bind = sparql_json_result_bindings_to_rdflib(
-        get_path(q_res, res_rows_path, default=[])
+    bind1 = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res1, res_rows_path, default=[])
     )
     b_list = []
-    for row in bind:
+    for row in bind1:
         x = get_path(row, [b])
         y = (x, )
         b_list.append(y)
@@ -160,16 +257,15 @@ def test_steps(gtps):
     # Query die über eine var aus gp2 random samplet mit values aus b_list
     q = gp2.to_sparql_select_sample_query(values=values, limit=5000)
     logger.info(q)
-    t, q_res = run_query(q)
+    t, q_res2 = run_query(q)
     # Kreiere target_list, in der die "gefundenen" Targets vermerkt sind
-    res_rows_path = ['results', 'bindings']
-    bind = sparql_json_result_bindings_to_rdflib(
-        get_path(q_res, res_rows_path, default=[])
+    bind2 = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res2, res_rows_path, default=[])
     )
     target_list = []
-    for row in bind:
+    for row in bind2:
         target_list.append(get_path(row, [TARGET_VAR]))
-    logger.info('orig query took %.4f s, result:\n%s\n', t, q_res)
+    logger.info('orig query took %.4f s, result:\n%s\n', t, q_res2)
     # Kreire gtps_2 in der alle gtps, deren targets in target_list enthalten
     # sind, "gespeichert" werden
     gtps_2 = []
@@ -179,27 +275,47 @@ def test_steps(gtps):
                 gtps_2.append(gtp)
     logger.info(gtps_2)
 
-    gp3 = GraphPattern([
-        (SOURCE_VAR, a, b),
-        (b, c, TARGET_VAR)
-    ])
+    # GraphPattern mit gefixten Pfaden aus den gefundenen gtp kreieren:
+    # TODO: Das ganze als Methode aus einem graph-pattern, den results und
+    # den stp
+    gp_list = []
+    for row2 in bind2:
+        for gtp in gtps:
+            if gtp[1] == get_path(row2, [TARGET_VAR]):
+                for row1 in bind1:
+                    if get_path(row1, [b]) == get_path(row2, [b]):
+                        gp_ = GraphPattern([
+                            (SOURCE_VAR, get_path(row1, [a]), b),
+                            (b, get_path(row2, [c]), TARGET_VAR)
+                        ])
+                        if gp_ not in gp_list:
+                            gp_list.append(gp_)
+
+    # gp3 = GraphPattern([
+    #     (SOURCE_VAR, a, b),
+    #     (b, c, TARGET_VAR)
+    # ])
     gtp_scores = GTPScores(gtps)
-    gtp_scores2 = GTPScores(gtps_2)
+    # gtp_scores2 = GTPScores(gtps_2)
 
-    # Fixe das pattern über die gefundenen gtps
-    mfv2 = []
-    if len(gtps_2) > 1:
-        mfv2 = mutate_fix_var(sparql, timeout, gtp_scores2, gp3)
+    # # Fixe das pattern über die gefundenen gtps
+    # mfv2 = []
+    # if len(gtps_2) > 1:
+    #     mfv2 = mutate_fix_var(sparql, timeout, gtp_scores2, gp3)
+    #
+    # # lasse die gefundenen Pattern einmal durch die fix_var laufen
+    # mfv = []
+    # for gp_mfv2 in mfv2:
+    #     mfv_res = mutate_fix_var(sparql, timeout, gtp_scores, gp_mfv2)
+    #     for gp_res in mfv_res:
+    #         mfv.append(gp_res)
+    #
+    # # evaluiere die so gefundenen Pattern
+    # res_eval = eval_gp_list(gtp_scores, mfv)
+    # return res_eval
 
-    # lasse die gefundenen Pattern einmal durch die fix_var laufen
-    mfv = []
-    for gp_mfv2 in mfv2:
-        mfv_res = mutate_fix_var(sparql, timeout, gtp_scores, gp_mfv2)
-        for gp_res in mfv_res:
-            mfv.append(gp_res)
-
-    # evaluiere die so gefundenen Pattern
-    res_eval = eval_gp_list(gtp_scores, mfv)
+    # evaluiere die gefixten pattern
+    res_eval = eval_gp_list(gtp_scores, gp_list)
     return res_eval
 
 
@@ -235,7 +351,8 @@ def list_remove_bool(var):
     # keine Probleme mit dem Category:Cigarettes-Beispiel zu bekommen
     # (siehe docs)
     # TODO: Möglicherweise dafür sorgen, dass die nicht rausgeschmissen,
-    # sondern nur nicht mit prefix gekürzt werden
+    # sondern nur nicht mit prefix gekürzt werden, also einfach mal schauen,
+    # dass die curify das tut was sie soll
     elif isinstance(var, URIRef):
         return ':' in var[7:]
     return False
@@ -247,17 +364,35 @@ def eval_gp_list(gtp_scores, gp_list):
         res_ev = evaluate(
             sparql, timeout, gtp_scores, gp_l, run=0, gen=0)
         update_individuals([gp_l], [res_ev])
-        #print_graph_pattern(gp_, print_matching_node_pairs=0)
+        # print_graph_pattern(gp_, print_matching_node_pairs=0)
     return gp_list
 
 
 if __name__ == '__main__':
-    res = []
-    for i in range(20):
-        res_ts = test_steps(ground_truth_pairs_2)
-        for gp_ts in res_ts:
-            res.append(gp_ts)
+    # # test_sample:
+    # res = []
+    # for i in range(10):
+    #     res_ts = test_sample(ground_truth_pairs_2)
+    #     for gp_ts in res_ts:
+    #         res.append(gp_ts)
+    #
+    # res = sorted(res, key=lambda gp_: -gp_.fitness.values.score)
+    # for res_ in res:
+    #     print_graph_pattern(res_)
 
-    res = sorted(res, key=lambda gp_: -gp_.fitness.values.score)
-    for i in range(10):
-        print_graph_pattern(res[i])
+    # test_count
+    res = []
+    for i in range(1):
+        ground_truth_pairs_5 = get_semantic_associations()
+        ground_truth_pairs_5 = random.sample(ground_truth_pairs_5, 200)
+        max_out_steps = [10, 15, 20, 25, 30, 40, 50, 75, 100]
+        for j in max_out_steps:
+            res_ts = test_count(ground_truth_pairs_5, j)
+            for gp_ts in res_ts:
+                res.append((gp_ts, j))
+
+    res = sorted(res, key=lambda gp_: -gp_[0].fitness.values.score)
+    res = res[0:100]
+    for res_ in res:
+        print('max_out:'+str(res_[1]))
+        print_graph_pattern(res_[0])
