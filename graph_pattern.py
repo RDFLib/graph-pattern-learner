@@ -830,14 +830,13 @@ class GraphPattern(tuple):
             var_to_count,
             valueblocks,
             steps,
-            startvar=None,
+            startvar,
             avglimit=10,
             gp_in=False
     ):
+        # TODO: evtl. Limit zufügen
         count_var_to_count = Variable('c' + ''.join(var_to_count))
         avg_var_to_count = Variable('avgc' + ''.join(var_to_count))
-        if startvar is None:
-            startvar = SOURCE_VAR
         res = "SELECT %(vtf)s (AVG(%(cvtc)s) as %(avtc)s) {\n" \
               "SELECT %(stv)s %(vtf)s (COUNT (%(vtc)s) as %(cvtc)s) {\n" \
               "%(val)s\n" \

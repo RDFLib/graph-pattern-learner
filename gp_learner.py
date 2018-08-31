@@ -54,6 +54,8 @@ from gp_query import predict_query
 from gp_query import query_stats
 from gp_query import query_time_hard_exceeded
 from gp_query import query_time_soft_exceeded
+from gp_query import useful_path_query
+from gp_query import useful_path_inst_query
 from gp_query import variable_substitution_query
 from graph_pattern import canonicalize
 from graph_pattern import gen_random_var
@@ -684,6 +686,121 @@ def mutate_fix_var(
     ]
     return res
 
+def mutate_deep_narrow(
+        sparql,
+        timeout,
+        child,
+        gtp_scores,
+        dn_path_steps_max_n=config.MUTPB_DN_PS_MAX_N,
+        direct=None, 
+        childin=False,
+        limit=config.MUTPB_FV_QUERY_LIMIT,  # TODO: Limit benutzen?
+):
+    if not child.matching_node_pairs:
+        ev = evaluate(
+            sparql, timeout, gtp_scores, child)  # TODO: Muss hier run/gen dazu?
+        update_individuals([child], [ev])
+    gtps = child.matching_node_pairs
+    if not gtps:
+        return [child]
+    #TODO: testen, wie die Verteilung gut ist
+    n = random.choice(range(dn_path_steps_max_n))+1
+    n = 2
+    node = [SOURCE_VAR]
+    for i in range(n):
+        node.append(Variable('n%i' % i))
+    node.append(TARGET_VAR)
+    hop = [Variable('p%i' % i) for i in range(n + 1)]
+    # TODO: Entfernern, wenn direct einfach immer random gewählt werden soll
+    if direct is None or len(direct) != n + 1:
+        logger.debug(
+            'No direction chosen, or direction tuple with false length'
+        )
+        direct = [0 for _ in range(n + 1)]
+    gp_helper = []
+    for i in range(n + 1):
+        if direct[i] == 0:
+            direct[i] = random.choice([-1, 1])
+        if direct[i] == 1:
+            gp_helper.append(
+                GraphPattern([(node[i], hop[i], node[i + 1])])
+            )
+        else:
+            gp_helper.append(
+                GraphPattern([(node[i + 1], hop[i], node[i])])
+            )
+    # Queries für die Schritte
+    valueblocks_s = {}
+    valueblocks_t = {}
+    for i in range(int((n / 2) + 1)):
+        if i < int(n/2):
+            t, q_res = useful_path_query(
+                sparql,
+                timeout,
+                child,
+                hop[i],
+                node[i+1],
+                valueblocks_s,
+                gp_helper[:i + 1],
+                SOURCE_VAR,
+                gp_in=childin,
+            )
+            if not q_res:
+                return [child]
+            valueblocks_s[hop[i]] = {
+                (hop[i],): random.sample(
+                    [(q_r,) for q_r in q_res],
+                    min(10, len(q_res))
+                )
+            }
+        if n-i > i:
+            t, q_res = useful_path_query(
+                sparql,
+                timeout,
+                child,
+                hop[n-i],
+                node[n-i],
+                valueblocks_t,
+                gp_helper[n - i:],
+                TARGET_VAR,
+                gp_in=childin,
+            )
+            if not q_res:
+                return [child]
+            valueblocks_t[hop[n-i]] = {
+                (hop[n-i],): random.sample(
+                    [(q_r,) for q_r in q_res],
+                    min(10, len(q_res))
+                )
+            }
+
+    # Query fürs Ergebnis
+    # gemeinsamer source/target-block, damit nur "richtige" Pfade gefunden
+    # werden
+    valueblocks = {}
+    valueblocks.update(valueblocks_s)
+    valueblocks.update(valueblocks_t)
+    t, q_res = useful_path_inst_query(
+        sparql,
+        timeout,
+        child,
+        hop,
+        valueblocks,
+        gp_helper,
+        gp_in=childin
+    )
+    if not q_res:
+        return [child]
+    res = []
+    for inst in q_res:
+        child_inst = GraphPattern([
+            (node[i], inst[i], node[i + 1]) if direct[i] == 1
+            else (node[i + 1], inst[i], node[i])
+            for i in range(n + 1)
+        ])
+        res.append(GraphPattern(child + child_inst))
+    return res
+
 
 def mutate_simplify_pattern(gp):
     if len(gp) < 2:
@@ -797,6 +914,7 @@ def mutate(
         pb_mv=config.MUTPB_MV,
         pb_sp=config.MUTPB_SP,
         pb_sv=config.MUTPB_SV,
+        pb_dn=config.MUTPB_DN,
 ):
     # mutate patterns:
     # grow: select random identifier and convert them into a var (local)
@@ -837,8 +955,14 @@ def mutate(
     else:
         children = [child]
 
-
-    # TODO: deep & narrow paths mutation
+    helper = []
+    for child in children:
+        if random.random() < pb_dn:
+            res = mutate_deep_narrow(sparql, timeout, gtp_scores, child)
+            helper += res
+        else:
+            helper.append(child)
+    children = helper
 
     children = {
         c if fit_to_live(c) else orig_child

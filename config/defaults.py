@@ -89,6 +89,9 @@ MUTPB_FV_RGTP_SAMPLE_N = 128  # sample <= n remaining GTPs to fix variables for
 MUTPB_FV_SAMPLE_MAXN = 32  # max n of instantiations to sample from top k
 MUTPB_FV_QUERY_LIMIT = 256  # SPARQL query limit for the top k instantiations
 MUTPB_SP = 0.05  # prob to simplify pattern (warning: can restrict exploration)
+MUTPB_DN = 0.5  # prob to try adding a deep and narrow path to a pattern
+MUTPB_DN_PS_MAX_N = 10  # Max steps in the deep narrow path
+MUTPB_DN_AVG_LIMIT = 10  # Max avg. reachable Nodes
 
 # fusion of target candidates:
 FUSION_SAMPLES_PER_CLASS = 500  # only use up to n training samples per class

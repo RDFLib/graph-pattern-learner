@@ -27,6 +27,7 @@ from rdflib import Variable
 
 from config import SPARQL_ENDPOINT
 from gp_learner import evaluate
+from gp_learner import mutate_deep_narrow
 from gp_learner import mutate_fix_var
 from gp_learner import update_individuals
 from gp_query import calibrate_query_timeout
@@ -2262,7 +2263,7 @@ def mutate_deep_narrow_n_hops(
 
 
 # erste Version, komplett straight forward
-def mutate_deep_narrow(
+def mutate_deep_narrow_1(
         gp_, gtps, n, direct=None, gp_in=False
 ):
     node = [SOURCE_VAR]
@@ -2651,7 +2652,7 @@ def mutate_deep_narrow_4(
     for i in range(int((n / 2) + 1)):
         if i < int(n/2):
             q = gp_.to_sparql_useful_path_query(
-                hop[i], node[i+1], valueblocks_s, gp_helper[:i+1], gp_in=gp_in
+                hop[i], node[i+1], valueblocks_s, gp_helper[:i+1], SOURCE_VAR, gp_in=gp_in
             )
             logger.debug(q)
             try:
@@ -2678,7 +2679,7 @@ def mutate_deep_narrow_4(
                 node[n-i],
                 valueblocks_t,
                 gp_helper[n-i:],
-                startvar=TARGET_VAR,
+                TARGET_VAR,
                 gp_in=gp_in
             )
             logger.debug(q)
@@ -3102,29 +3103,25 @@ def main():
     # ground_truth_pairs = ground_truth_pairs[:100]
     gtp_scores = GTPScores(ground_truth_pairs)
     res = []
-    # key = random.choice(gp_found.keys())
-    # for i in range(100):
-    #     # ground_truth_pairs = random.sample(ground_truth_pairs, 200)
-    #     gp_ = GraphPattern([])
-    #     # gp_ = gp_found[key]
-    #     res_= mutate_deep_narrow_5(gp_, ground_truth_pairs, 2, gp_in=False)
-    #     res.append(res_)
-    #     logger.info(i)
-    #     if res_:
-    #         logger.info(res_)
-    #
-    # logger.info(res)
-    for key in gp_found.keys():
+    for i in range(100):
+        key = random.choice(gp_found.keys())
         gp_ = gp_found[key]
-        eval_gp(gtp_scores, gp_)
-        for i in range(100):
-            res_ = mutate_deep_narrow_4(
-                gp_, gp_.matching_node_pairs, 6, gp_in=False
-            )
-            res.append(res_)
-            logger.info((i, key))
-            if res_:
-                logger.info(res_)
+        # eval_gp(gtp_scores, gp_)
+        r = mutate_deep_narrow(sparql, timeout, gp_, gtp_scores)
+        logger.info(i)
+        logger.info(r)
+        res.append(r)
+    # for key in gp_found.keys():
+    #     gp_ = gp_found[key]
+    #     eval_gp(gtp_scores, gp_)
+    #     for i in range(100):
+    #         res_ = mutate_deep_narrow_4(
+    #             gp_, gp_.matching_node_pairs, 6, gp_in=False
+    #         )
+    #         res.append(res_)
+    #         logger.info((i, key))
+    #         if res_:
+    #             logger.info(res_)
 
     # res_eval=[]
     # res = []
