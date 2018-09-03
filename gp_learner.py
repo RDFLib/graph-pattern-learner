@@ -686,26 +686,26 @@ def mutate_fix_var(
     ]
     return res
 
+
 def mutate_deep_narrow(
         sparql,
         timeout,
-        child,
         gtp_scores,
+        child,
         dn_path_steps_max_n=config.MUTPB_DN_PS_MAX_N,
-        direct=None, 
+        direct=None,
         childin=False,
         limit=config.MUTPB_FV_QUERY_LIMIT,  # TODO: Limit benutzen?
 ):
-    if not child.matching_node_pairs:
+    if not child.fitness.valid:
         ev = evaluate(
-            sparql, timeout, gtp_scores, child)  # TODO: Muss hier run/gen dazu?
+            sparql, timeout, gtp_scores, child, run=-1, gen=-1)  # TODO: Muss hier run/gen dazu?
         update_individuals([child], [ev])
     gtps = child.matching_node_pairs
     if not gtps:
         return [child]
-    #TODO: testen, wie die Verteilung gut ist
-    n = random.choice(range(dn_path_steps_max_n))+1
-    n = 2
+    # TODO: testen, wie die Verteilung gut ist
+    n = random.choice(range(dn_path_steps_max_n)) + 1
     node = [SOURCE_VAR]
     for i in range(n):
         node.append(Variable('n%i' % i))
