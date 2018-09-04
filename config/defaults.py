@@ -92,8 +92,8 @@ MUTPB_SP = 0.05  # prob to simplify pattern (warning: can restrict exploration)
 # TODO: Lower the MUTPB_DN
 MUTPB_DN = 0.5  # prob to try adding a deep and narrow path to a pattern
 MUTPB_DN_MAX_HOPS = 10  # Max number of hops in the deep narrow path
-MUTPB_DN_MAX_HOPS_ALPHA = 5.  # alpha value in a length beta distribution
-MUTPB_DN_MAX_HOPS_BETA = 30.  # beta value in a length beta distribution
+MUTPB_DN_MAX_HOPS_ALPHA = 2.  # alpha value in a length beta distribution
+MUTPB_DN_MAX_HOPS_BETA = 5.  # beta value in a length beta distribution
 MUTPB_DN_AVG_DEG_LIMIT = 10  # Max avg. reachable Nodes
 
 # fusion of target candidates:
