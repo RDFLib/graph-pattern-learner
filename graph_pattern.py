@@ -34,6 +34,7 @@ from utils import URIShortener
 
 logger = logging.getLogger(__name__)
 
+
 RANDOM_VAR_LEN = 5  # so in total we have 62**5=916132832 different random vars
 RANDOM_VAR_PREFIX = 'vr'
 SOURCE_VAR = Variable('source')
@@ -240,11 +241,11 @@ def canonicalize(gp, shorten_varnames=True):
     cgp = GraphPattern(cbgp, mapping=mapping)
 
     if not (
-            len(gp) == len(cbgp) == len(cgp)
-            and len(gp.nodes) == len(cgp.nodes)
-            and len(gp.edges) == len(cgp.edges)
-            and sorted(gp.identifier_counts().values()) ==
-            sorted(cgp.identifier_counts().values())
+        len(gp) == len(cbgp) == len(cgp)
+        and len(gp.nodes) == len(cgp.nodes)
+        and len(gp.edges) == len(cgp.edges)
+        and sorted(gp.identifier_counts().values()) ==
+        sorted(cgp.identifier_counts().values())
     ):
         # canonicalization should never change any of the features above, but it
         # did before (e.g., https://github.com/RDFLib/rdflib/issues/494 ).
@@ -431,8 +432,8 @@ class GraphPattern(tuple):
             [(s, p, o)
              for s, p, o in self
              if p not in identifiers and
-             s not in identifiers and
-             o not in identifiers
+                s not in identifiers and
+                o not in identifiers
              ]
         )
 
@@ -447,7 +448,7 @@ class GraphPattern(tuple):
         :param vars_only: Only return counts for vars.
         :return: Counter of all identifiers in this graph pattern.
         """
-        assert not (exclude_vars and vars_only)
+        assert not(exclude_vars and vars_only)
         ids = Counter([i for t in self for i in t])
         if exclude_vars:
             for i in self.vars_in_graph:
