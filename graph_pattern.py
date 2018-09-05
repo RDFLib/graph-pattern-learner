@@ -647,7 +647,7 @@ class GraphPattern(tuple):
             avglimit=10,
             gp_in=False
     ):
-        # TODO: evtl. Limit zufügen
+        # TODO: Maybe use a limit
         count_var_to_count = Variable('c' + ''.join(var_to_count))
         avg_var_to_count = Variable('avgc' + ''.join(var_to_count))
         res = "SELECT %(vtf)s (AVG(%(cvtc)s) as %(avtc)s) {\n" \
@@ -669,7 +669,7 @@ class GraphPattern(tuple):
                   ]),
                   'trip': ''.join([
                       step._sparql_triples_part(indent=' ') for step in steps
-                      # TODO: nicht auf private Methode zugreifen
+                      # TODO: don't use private method
                   ]) + ''.join([
                       self._sparql_triples_part(indent=' ') if gp_in else ''
                   ]),
@@ -686,6 +686,7 @@ class GraphPattern(tuple):
             steps,
             gp_in=False
     ):
+        # TODO: Maybe use a limit
         res = "SELECT %(vtf)s (COUNT (?source) as ?cst) {\n" \
               "%(val)s\n" \
               "%(trip)s }\n" \
@@ -699,7 +700,7 @@ class GraphPattern(tuple):
                   ]),
                   'trip': ''.join([
                       step._sparql_triples_part() for step in steps
-                      # TODO: nicht auf private Methode zugreifen
+                      # TODO: don't use private method
                   ]) + ''.join([
                       self._sparql_triples_part(indent=' ') if gp_in else ''
                   ]),
