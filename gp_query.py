@@ -708,7 +708,7 @@ def useful_path_query(
         valueblocks,
         steps,
         startvar,
-        avglimit=config.MUTPB_DN_AVG_LIMIT,
+        avglimit=config.MUTPB_DN_AVG_DEG_LIMIT,
         gp_in=False,
         batch_size=None
 ):
