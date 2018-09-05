@@ -687,7 +687,7 @@ def mutate_fix_var(
     return res
 
 
-def mutate_deep_narrow(
+def mutate_deep_narrow_path(
         sparql,
         timeout,
         gtp_scores,
@@ -711,11 +711,8 @@ def mutate_deep_narrow(
     # PDF: 1: 14 %, 2: 27 %, 3: 25 %, 4: 17 %, 5: 10 %, 6: 5 %, 7: 1.5 %, ...
     # CDF: 1: 14 %, 2: 40 %, 3: 66 %, 4: 83 %, 5: 93 %, 6: 98 %, 7: 99,6 %, ...
     n = int(random.betavariate(alpha, beta) * (max_hops-1) + 1)
-    node = [SOURCE_VAR]
-    for i in range(n):
-        node.append(Variable('n%i' % i))
-    node.append(TARGET_VAR)
-    hop = [Variable('p%i' % i) for i in range(n + 1)]
+    nodes = [SOURCE_VAR] + [Variable('n%d' % i) for i in range(n)] + [TARGET_VAR]
+    hops = [Variable('p%d' % i) for i in range(n + 1)]
     # TODO: Entfernern, wenn direct einfach immer random gewählt werden soll
     if direct is None or len(direct) != n + 1:
         logger.debug(
@@ -728,23 +725,23 @@ def mutate_deep_narrow(
             direct[i] = random.choice([-1, 1])
         if direct[i] == 1:
             gp_helper.append(
-                GraphPattern([(node[i], hop[i], node[i + 1])])
+                GraphPattern([(nodes[i], hops[i], nodes[i + 1])])
             )
         else:
             gp_helper.append(
-                GraphPattern([(node[i + 1], hop[i], node[i])])
+                GraphPattern([(nodes[i + 1], hops[i], nodes[i])])
             )
     # Queries für die Schritte
     valueblocks_s = {}
     valueblocks_t = {}
-    for i in range(int((n / 2) + 1)):
+    for i in range(n // 2 + 1):
         if i < int(n/2):
             t, q_res = useful_path_query(
                 sparql,
                 timeout,
                 child,
-                hop[i],
-                node[i+1],
+                hops[i],
+                nodes[i+1],
                 valueblocks_s,
                 gp_helper[:i + 1],
                 SOURCE_VAR,
@@ -752,8 +749,8 @@ def mutate_deep_narrow(
             )
             if not q_res:
                 return [child]
-            valueblocks_s[hop[i]] = {
-                (hop[i],): random.sample(
+            valueblocks_s[hops[i]] = {
+                (hops[i],): random.sample(
                     [(q_r,) for q_r in q_res],
                     min(10, len(q_res))
                 )
@@ -763,8 +760,8 @@ def mutate_deep_narrow(
                 sparql,
                 timeout,
                 child,
-                hop[n-i],
-                node[n-i],
+                hops[n-i],
+                nodes[n-i],
                 valueblocks_t,
                 gp_helper[n - i:],
                 TARGET_VAR,
@@ -772,10 +769,10 @@ def mutate_deep_narrow(
             )
             if not q_res:
                 return [child]
-            valueblocks_t[hop[n-i]] = {
-                (hop[n-i],): random.sample(
+            valueblocks_t[hops[n-i]] = {
+                (hops[n-i],): random.sample(
                     [(q_r,) for q_r in q_res],
-                    min(10, len(q_res))
+                    min(config.MUTPB_DN_AVG_DEG_LIMIT, len(q_res))
                 )
             }
 
@@ -789,7 +786,7 @@ def mutate_deep_narrow(
         sparql,
         timeout,
         child,
-        hop,
+        hops,
         valueblocks,
         gp_helper,
         gp_in=childin
@@ -799,8 +796,8 @@ def mutate_deep_narrow(
     res = []
     for inst in q_res:
         child_inst = GraphPattern([
-            (node[i], inst[i], node[i + 1]) if direct[i] == 1
-            else (node[i + 1], inst[i], node[i])
+            (nodes[i], inst[i], nodes[i + 1]) if direct[i] == 1
+            else (nodes[i + 1], inst[i], nodes[i])
             for i in range(n + 1)
         ])
         res.append(GraphPattern(child + child_inst))
@@ -959,7 +956,7 @@ def mutate(
         children = mutate_fix_var(sparql, timeout, gtp_scores, child)
     else:
         if random.random() < pb_dn:
-            children = mutate_deep_narrow(sparql, timeout, gtp_scores, child)
+            children = mutate_deep_narrow_path(sparql, timeout, gtp_scores, child)
         else:
             children = [child]
 

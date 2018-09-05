@@ -27,7 +27,7 @@ from rdflib import Variable
 
 from config import SPARQL_ENDPOINT
 from gp_learner import evaluate
-from gp_learner import mutate_deep_narrow
+from gp_learner import mutate_deep_narrow_path
 from gp_learner import mutate_fix_var
 from gp_learner import update_individuals
 from gp_query import calibrate_query_timeout
@@ -3107,7 +3107,7 @@ def main():
         key = random.choice(gp_found.keys())
         gp_ = gp_found[key]
         # eval_gp(gtp_scores, gp_)
-        r = mutate_deep_narrow(sparql, timeout, gtp_scores, gp_)
+        r = mutate_deep_narrow_path(sparql, timeout, gtp_scores, gp_)
         logger.info(i)
         logger.info(r)
         res.append(r)
