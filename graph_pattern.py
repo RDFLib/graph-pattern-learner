@@ -866,7 +866,7 @@ class GraphPattern(tuple):
         res = textwrap.dedent(res)
         return self._sparql_prefix(res)
 
-    def to_sparql_deep_narrow_path_inst_query(
+    def to_sparql_deep_narrow_path_inst_query_old(
             self,
             hop,
             valueblocks,
@@ -896,7 +896,7 @@ class GraphPattern(tuple):
         return self._sparql_prefix(res)
 
     # TODO: die normale inst durch diese hier ersetzen (sollte überall gehen)
-    def to_sparql_useful_path_inst_query(
+    def to_sparql_deep_narrow_path_inst_query(
             self,
             hop,
             valueblocks,

@@ -2337,7 +2337,7 @@ def mutate_deep_narrow_1(
     # werden
     del valueblocks[SOURCE_VAR]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_deep_narrow_path_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
+    q = gp_.to_sparql_deep_narrow_path_inst_query_old(hop, valueblocks, gp_help, gp_in=gp_in)
     logger.debug(q)
     try:
         t, res_q_inst = run_query(q)
@@ -2435,7 +2435,7 @@ def mutate_deep_narrow_2(
     # werden
     del valueblocks[SOURCE_VAR]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_useful_path_inst_query(
+    q = gp_.to_sparql_deep_narrow_path_inst_query(
         hop, valueblocks, gp_helper, gp_in=gp_in
     )
     logger.debug(q)
@@ -2577,7 +2577,7 @@ def mutate_deep_narrow_3(
         if key is not TARGET_VAR:
             valueblocks[key] = valueblocks_t[key]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_deep_narrow_path_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
+    q = gp_.to_sparql_deep_narrow_path_inst_query_old(hop, valueblocks, gp_help, gp_in=gp_in)
     logger.debug(q)
     try:
         t, res_q_inst = run_query(q)
@@ -2713,7 +2713,7 @@ def mutate_deep_narrow_4(
         if key is not TARGET_VAR:
             valueblocks[key] = valueblocks_t[key]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_useful_path_inst_query(
+    q = gp_.to_sparql_deep_narrow_path_inst_query(
         hop, valueblocks, gp_helper, gp_in=gp_in
     )
     logger.debug(q)
@@ -2816,7 +2816,7 @@ def mutate_deep_narrow_5(
     # werden
     del valueblocks[SOURCE_VAR]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_deep_narrow_path_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
+    q = gp_.to_sparql_deep_narrow_path_inst_query_old(hop, valueblocks, gp_help, gp_in=gp_in)
     logger.debug(q)
     try:
         t, res_q_inst = run_query(q)
@@ -2934,7 +2934,7 @@ def mutate_deep_narrow_6(
     # werden
     del valueblocks[SOURCE_VAR]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_useful_path_inst_query(
+    q = gp_.to_sparql_deep_narrow_path_inst_query(
         hop, valueblocks, gp_helper, gp_in=gp_in
     )
     logger.debug(q)
@@ -3066,7 +3066,7 @@ def mutate_deep_narrow_7(
         if key is not TARGET_VAR:
             valueblocks[key] = valueblocks_t[key]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_useful_path_inst_query(
+    q = gp_.to_sparql_deep_narrow_path_inst_query(
         hop, valueblocks, gp_helper, gp_in=gp_in
     )
     logger.debug(q)
