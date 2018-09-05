@@ -692,20 +692,25 @@ def mutate_deep_narrow(
         timeout,
         gtp_scores,
         child,
-        dn_path_steps_max_n=config.MUTPB_DN_PS_MAX_N,
         direct=None,
         childin=False,
         limit=config.MUTPB_FV_QUERY_LIMIT,  # TODO: Limit benutzen?
 ):
     if not child.fitness.valid:
         ev = evaluate(
-            sparql, timeout, gtp_scores, child, run=-1, gen=-1)  # TODO: Muss hier run/gen dazu?
+            sparql, timeout, gtp_scores, child, run=-1, gen=-1)
         update_individuals([child], [ev])
     gtps = child.matching_node_pairs
     if not gtps:
         return [child]
-    # TODO: testen, wie die Verteilung gut ist
-    n = random.choice(range(dn_path_steps_max_n)) + 1
+    alpha = config.MUTPB_DN_MAX_HOPS_ALPHA
+    beta = config.MUTPB_DN_MAX_HOPS_BETA
+    max_hops = config.MUTPB_DN_MAX_HOPS
+    # more likely to create shorter paths
+    # with default values the distribution is as follows:
+    # PDF: 1: 14 %, 2: 27 %, 3: 25 %, 4: 17 %, 5: 10 %, 6: 5 %, 7: 1.5 %, ...
+    # CDF: 1: 14 %, 2: 40 %, 3: 66 %, 4: 83 %, 5: 93 %, 6: 98 %, 7: 99,6 %, ...
+    n = int(random.betavariate(alpha, beta) * (max_hops-1) + 1)
     node = [SOURCE_VAR]
     for i in range(n):
         node.append(Variable('n%i' % i))
@@ -953,16 +958,10 @@ def mutate(
         child = canonicalize(child)
         children = mutate_fix_var(sparql, timeout, gtp_scores, child)
     else:
-        children = [child]
-
-    helper = []
-    for child in children:
         if random.random() < pb_dn:
-            res = mutate_deep_narrow(sparql, timeout, gtp_scores, child)
-            helper += res
+            children = mutate_deep_narrow(sparql, timeout, gtp_scores, child)
         else:
-            helper.append(child)
-    children = helper
+            children = [child]
 
     children = {
         c if fit_to_live(c) else orig_child
