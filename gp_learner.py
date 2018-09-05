@@ -692,10 +692,34 @@ def mutate_deep_narrow_path(
         timeout,
         gtp_scores,
         child,
-        direct=None,
-        childin=False,
-        limit=config.MUTPB_FV_QUERY_LIMIT,  # TODO: Limit benutzen?
+        directions=None,
+        child_in_queries=False,
+        limit=None,  # TODO: Use a limit for the queries?
 ):
+    """ Finds n-hop-connections from Source to Target, to add them to a given
+    Graph-Pattern.
+    
+    The outline of the mutation is as follows:
+    - If not evaluated, evaluates the given GP to work on its matching-node-
+      pairs
+    - If not passed in, randomly selects the path-length and the directions
+      of the single hops.
+    - Issues SPARQL queries, to find hops (from Source and Target), that don't
+      have a big fan-out (smaller than the default-value). Uses an default max-
+      amount of found hops to find the next hop.
+      When there is only one hop left to find, it tries to instanciate paths,
+      that fit to an STP. If such a path is found, its hops are added to the GP.
+      As there could be more than one path, the mutation returns a list of such
+      patterns.
+
+    :param directions: list of directions to use for the hops
+        (1: Source -> Target, -1: Target -> Source,
+        0 (or everything else): choose random)
+    :param child_in_queries: If true: add the triples of the given pattern to
+        the queries
+    :param limit: SPARQL limnit
+    :return: list of children in which a deep_narrow_path is added
+    """
     if not child.fitness.valid:
         ev = evaluate(
             sparql, timeout, gtp_scores, child, run=-1, gen=-1)
@@ -703,35 +727,32 @@ def mutate_deep_narrow_path(
     gtps = child.matching_node_pairs
     if not gtps:
         return [child]
-    alpha = config.MUTPB_DN_MAX_HOPS_ALPHA
-    beta = config.MUTPB_DN_MAX_HOPS_BETA
-    max_hops = config.MUTPB_DN_MAX_HOPS
-    # more likely to create shorter paths
-    # with default values the distribution is as follows:
-    # PDF: 1: 14 %, 2: 27 %, 3: 25 %, 4: 17 %, 5: 10 %, 6: 5 %, 7: 1.5 %, ...
-    # CDF: 1: 14 %, 2: 40 %, 3: 66 %, 4: 83 %, 5: 93 %, 6: 98 %, 7: 99,6 %, ...
-    n = int(random.betavariate(alpha, beta) * (max_hops-1) + 1)
+    if directions:
+        n = len(directions) - 1
+    else:
+        alpha = config.MUTPB_DN_MAX_HOPS_ALPHA
+        beta = config.MUTPB_DN_MAX_HOPS_BETA
+        max_hops = config.MUTPB_DN_MAX_HOPS
+        # more likely to create shorter paths
+        # with default values the distribution is as follows:
+        # PDF: 1: 14 %, 2: 27 %, 3: 25 %, 4: 17 %, 5: 10 %, 6: 5 %, 7: 1.5 %, ...
+        # CDF: 1: 14 %, 2: 40 %, 3: 66 %, 4: 83 %, 5: 93 %, 6: 98 %, 7: 99,6 %, ...
+        n = int(random.betavariate(alpha, beta) * (max_hops-1) + 1)
     nodes = [SOURCE_VAR] + [Variable('n%d' % i) for i in range(n)] + [TARGET_VAR]
     hops = [Variable('p%d' % i) for i in range(n + 1)]
-    # TODO: Entfernern, wenn direct einfach immer random gewählt werden soll
-    if direct is None or len(direct) != n + 1:
-        logger.debug(
-            'No direction chosen, or direction tuple with false length'
-        )
-        direct = [0 for _ in range(n + 1)]
-    gp_helper = []
-    for i in range(n + 1):
-        if direct[i] == 0:
-            direct[i] = random.choice([-1, 1])
-        if direct[i] == 1:
-            gp_helper.append(
-                GraphPattern([(nodes[i], hops[i], nodes[i + 1])])
-            )
-        else:
-            gp_helper.append(
-                GraphPattern([(nodes[i + 1], hops[i], nodes[i])])
-            )
-    # Queries für die Schritte
+    if not directions:
+        directions = [0 for _ in range(n + 1)]
+    directions = [
+        random.choice([-1, 1]) if d not in [-1, 1] else d for d in directions
+    ]
+    gp_hops = [
+        # directions[i] == 1 => hop in the direction source -> target
+        GraphPattern([(nodes[i], hops[i], nodes[i + 1])]) if directions[i] == 1
+        # directions[i] == -1 => hop in the direction target -> source
+        else GraphPattern([(nodes[i + 1], hops[i], nodes[i])])
+        for i in range(n+1)
+    ]
+    # queries to get the first n hops:
     valueblocks_s = {}
     valueblocks_t = {}
     for i in range(n // 2 + 1):
@@ -743,16 +764,16 @@ def mutate_deep_narrow_path(
                 hops[i],
                 nodes[i+1],
                 valueblocks_s,
-                gp_helper[:i + 1],
+                gp_hops[:i + 1],
                 SOURCE_VAR,
-                gp_in=childin,
+                gp_in=child_in_queries,
             )
             if not q_res:
                 return [child]
             valueblocks_s[hops[i]] = {
                 (hops[i],): random.sample(
                     [(q_r,) for q_r in q_res],
-                    min(10, len(q_res))
+                    min(config.MUTPB_DN_MAX_HOP_INST, len(q_res))
                 )
             }
         if n-i > i:
@@ -763,22 +784,21 @@ def mutate_deep_narrow_path(
                 hops[n-i],
                 nodes[n-i],
                 valueblocks_t,
-                gp_helper[n - i:],
+                gp_hops[n - i:],
                 TARGET_VAR,
-                gp_in=childin,
+                gp_in=child_in_queries,
             )
             if not q_res:
                 return [child]
             valueblocks_t[hops[n-i]] = {
                 (hops[n-i],): random.sample(
                     [(q_r,) for q_r in q_res],
-                    min(config.MUTPB_DN_AVG_DEG_LIMIT, len(q_res))
+                    min(config.MUTPB_DN_MAX_HOP_INST, len(q_res))
                 )
             }
 
-    # Query fürs Ergebnis
-    # gemeinsamer source/target-block, damit nur "richtige" Pfade gefunden
-    # werden
+    # query to get the last hop and instantiations, that connect source and
+    # target
     valueblocks = {}
     valueblocks.update(valueblocks_s)
     valueblocks.update(valueblocks_t)
@@ -788,19 +808,18 @@ def mutate_deep_narrow_path(
         child,
         hops,
         valueblocks,
-        gp_helper,
-        gp_in=childin
+        gp_hops,
+        gp_in=child_in_queries
     )
     if not q_res:
         return [child]
-    res = []
-    for inst in q_res:
-        child_inst = GraphPattern([
-            (nodes[i], inst[i], nodes[i + 1]) if direct[i] == 1
-            else (nodes[i + 1], inst[i], nodes[i])
+    res = [
+        child + GraphPattern([
+            (nodes[i], qr[i], nodes[i + 1]) if directions[i] == 1
+            else (nodes[i + 1], qr[i], nodes[i])
             for i in range(n + 1)
-        ])
-        res.append(GraphPattern(child + child_inst))
+        ]) for qr in q_res
+    ]
     return res
 
 
