@@ -95,6 +95,7 @@ MUTPB_DN_MAX_HOPS = 10  # Max number of hops in the deep narrow path
 MUTPB_DN_MAX_HOPS_ALPHA = 2.  # alpha value in a length beta distribution
 MUTPB_DN_MAX_HOPS_BETA = 5.  # beta value in a length beta distribution
 MUTPB_DN_AVG_DEG_LIMIT = 10  # Max avg. reachable Nodes
+MUTPB_DN_MAX_HOP_INST = 10  # Max number of hop instances for the next query/ies
 
 # fusion of target candidates:
 FUSION_SAMPLES_PER_CLASS = 500  # only use up to n training samples per class
