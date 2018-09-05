@@ -2304,7 +2304,7 @@ def mutate_deep_narrow_1(
     valueblocks = {}
     valueblocks[SOURCE_VAR] = values[SOURCE_VAR]
     for i in range(n+1):
-        q = gp_.to_sparql_useful_path_query(
+        q = gp_.to_sparql_deep_narrow_path_query(
             hop[i], node[i+1], valueblocks, gp_helper[:i+1], gp_in=gp_in
         )
         logger.debug(q)
@@ -2337,7 +2337,7 @@ def mutate_deep_narrow_1(
     # werden
     del valueblocks[SOURCE_VAR]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
+    q = gp_.to_sparql_deep_narrow_path_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
     logger.debug(q)
     try:
         t, res_q_inst = run_query(q)
@@ -2408,7 +2408,7 @@ def mutate_deep_narrow_2(
     valueblocks = {}
     valueblocks[SOURCE_VAR] = values[SOURCE_VAR]
     for i in range(n):
-        q = gp_.to_sparql_useful_path_query(
+        q = gp_.to_sparql_deep_narrow_path_query(
             hop[i], node[i+1], valueblocks, gp_helper[:i+1], gp_in=gp_in
         )
         logger.debug(q)
@@ -2510,7 +2510,7 @@ def mutate_deep_narrow_3(
     valueblocks_t = {}
     valueblocks_t[TARGET_VAR] = values[TARGET_VAR]
     for i in range(int((n / 2) + 1)):
-        q = gp_.to_sparql_useful_path_query(
+        q = gp_.to_sparql_deep_narrow_path_query(
             hop[i], node[i+1], valueblocks_s, gp_helper[:i+1], gp_in=gp_in
         )
         logger.debug(q)
@@ -2533,7 +2533,7 @@ def mutate_deep_narrow_3(
             )
         }
         if n-i != i:
-            q = gp_.to_sparql_useful_path_query(
+            q = gp_.to_sparql_deep_narrow_path_query(
                 hop[n-i],
                 node[n-i],
                 valueblocks_t,
@@ -2577,7 +2577,7 @@ def mutate_deep_narrow_3(
         if key is not TARGET_VAR:
             valueblocks[key] = valueblocks_t[key]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
+    q = gp_.to_sparql_deep_narrow_path_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
     logger.debug(q)
     try:
         t, res_q_inst = run_query(q)
@@ -2651,7 +2651,7 @@ def mutate_deep_narrow_4(
     valueblocks_t[TARGET_VAR] = values[TARGET_VAR]
     for i in range(int((n / 2) + 1)):
         if i < int(n/2):
-            q = gp_.to_sparql_useful_path_query(
+            q = gp_.to_sparql_deep_narrow_path_query(
                 hop[i], node[i+1], valueblocks_s, gp_helper[:i+1], SOURCE_VAR, gp_in=gp_in
             )
             logger.debug(q)
@@ -2674,7 +2674,7 @@ def mutate_deep_narrow_4(
                 )
             }
         if n-i > i:
-            q = gp_.to_sparql_useful_path_query(
+            q = gp_.to_sparql_deep_narrow_path_query(
                 hop[n-i],
                 node[n-i],
                 valueblocks_t,
@@ -2786,7 +2786,7 @@ def mutate_deep_narrow_5(
     valueblocks = {}
     valueblocks[SOURCE_VAR] = values[SOURCE_VAR]
     for i in range(n+1):
-        q = gp_.to_sparql_useful_path_query(
+        q = gp_.to_sparql_deep_narrow_path_query(
             hop[i], node[i+1], valueblocks, gp_helper[:i+1], gp_in=gp_in
         )
         logger.debug(q)
@@ -2816,7 +2816,7 @@ def mutate_deep_narrow_5(
     # werden
     del valueblocks[SOURCE_VAR]
     valueblocks['st'] = values['st']
-    q = gp_.to_sparql_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
+    q = gp_.to_sparql_deep_narrow_path_inst_query(hop, valueblocks, gp_help, gp_in=gp_in)
     logger.debug(q)
     try:
         t, res_q_inst = run_query(q)
@@ -2907,7 +2907,7 @@ def mutate_deep_narrow_6(
     valueblocks = {}
     valueblocks[SOURCE_VAR] = values[SOURCE_VAR]
     for i in range(n):
-        q = gp_.to_sparql_useful_path_query(
+        q = gp_.to_sparql_deep_narrow_path_query(
             hop[i], node[i+1], valueblocks, gp_helper[:i+1], gp_in=gp_in
         )
         logger.debug(q)
@@ -3010,7 +3010,7 @@ def mutate_deep_narrow_7(
     valueblocks_t[TARGET_VAR] = values[TARGET_VAR]
     for i in range(int((n / 2) + 1)):
         if i < int(n/2):
-            q = gp_.to_sparql_useful_path_query(
+            q = gp_.to_sparql_deep_narrow_path_query(
                 hop[i], node[i+1], valueblocks_s, gp_helper[:i+1], gp_in=gp_in
             )
             logger.debug(q)
@@ -3030,7 +3030,7 @@ def mutate_deep_narrow_7(
                 hop[i], Variable('avgc' + ''.join(node[i + 1])), res_q[i]
             )
         if n-i > i:
-            q = gp_.to_sparql_useful_path_query(
+            q = gp_.to_sparql_deep_narrow_path_query(
                 hop[n-i],
                 node[n-i],
                 valueblocks_t,

@@ -745,7 +745,7 @@ def _deep_narrow_path_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
         }
     }
     valueblocks.update(_valueblocks)
-    return gp.to_sparql_useful_path_query(
+    return gp.to_sparql_deep_narrow_path_query(
             var_to_fix,
             var_to_count,
             valueblocks,
