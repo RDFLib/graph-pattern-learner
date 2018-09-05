@@ -713,10 +713,9 @@ def deep_narrow_path_query(
         batch_size=None
 ):
     _query_stats.useful_path_query_count += 1
-    # TODO: evtl. je 10 pro 'gefixter' Variable von batch-size abziehen
-    # (weil der Block ja mit rein geht)
+    # TODO: maybe batch_size = batch_size - 10 * number of valueblocks for hops
     _values = graph_pattern.matching_node_pairs
-    # TODO: evtl. Schnitt mit noch nicht abgedeckten
+    # TODO: maybe use not good covered stp
     _ret_val_mapping = {stp: [stp] for stp in graph_pattern.matching_node_pairs}
     _vars_steps_and_stuff = (
         var_to_fix, var_to_count, startvar, valueblocks, steps, avglimit, gp_in
@@ -765,10 +764,8 @@ def _deep_narrow_path_chunk_result_ext(q_res, _vars_steps_and_stuff, _, **kwds):
     bindings = sparql_json_result_bindings_to_rdflib(
         get_path(q_res, res_rows_path, default=[])
     )
-
     for row in bindings:
-        # TODO: Drüber nachdenken, ob iwie die avg-outgoing auch mit
-        # zurückgegeben werden sollen
+        # TODO: Maybe return the avg-degree too
         chunk_res.append(get_path(row, [var_to_fix]))
     return chunk_res
 
@@ -788,10 +785,9 @@ def deep_narrow_path_inst_query(
         batch_size=None
 ):
     _query_stats.useful_path_inst_query_count += 1
-    # TODO: evtl. je 10 pro 'gefixter' Variable von batch-size abziehen
-    # (weil der Block ja mit rein geht)
+    # TODO: maybe batch_size = batch_size - 10 * number of valueblocks for hops
     _values = graph_pattern.matching_node_pairs
-    # evtl. Schnitt mit noch nicht abgedeckten
+    # TODO: maybe use not good covered stp
     _ret_val_mapping = {stp: [stp] for stp in graph_pattern.matching_node_pairs}
     _vars_steps_and_stuff = (hop, valueblocks, steps, gp_in)
     return _multi_query(
