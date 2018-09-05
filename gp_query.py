@@ -699,7 +699,7 @@ def _var_subst_res_update(res, update, **_):
     res += update
     
 
-def useful_path_query(
+def deep_narrow_path_query(
         sparql,
         timeout,
         graph_pattern,
@@ -724,17 +724,17 @@ def useful_path_query(
     return _multi_query(
         sparql, timeout, graph_pattern, graph_pattern.matching_node_pairs,
         batch_size, _vars_steps_and_stuff, _values, _ret_val_mapping,
-        _usef_path_res_init, _usef_path_chunk_q, _usef_path_chunk_result_ext,
-        _usef_path_res_update
+        _deep_narrow_path_res_init, _deep_narrow_path_chunk_q,
+        _deep_narrow_path_chunk_result_ext, _deep_narrow_path_res_update
     )
 
 
 # noinspection PyUnusedLocal
-def _usef_path_res_init(_, **kwds):
+def _deep_narrow_path_res_init(_, **kwds):
     return []
 
 
-def _usef_path_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
+def _deep_narrow_path_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
     var_to_fix, var_to_count, startvar, _valueblocks, steps, avglimit, gp_in \
         = _vars_steps_and_stuff
     valueblocks = {
@@ -757,7 +757,7 @@ def _usef_path_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
 
 
 # noinspection PyUnusedLocal
-def _usef_path_chunk_result_ext(q_res, _vars_steps_and_stuff, _, **kwds):
+def _deep_narrow_path_chunk_result_ext(q_res, _vars_steps_and_stuff, _, **kwds):
     var_to_fix, var_to_count, startvar, _valueblocks, steps, avglimit, gp_in \
         = _vars_steps_and_stuff
     chunk_res = []
@@ -773,11 +773,11 @@ def _usef_path_chunk_result_ext(q_res, _vars_steps_and_stuff, _, **kwds):
     return chunk_res
 
 
-def _usef_path_res_update(res, update, **_):
+def _deep_narrow_path_res_update(res, update, **_):
     res += update
     
     
-def useful_path_inst_query(
+def deep_narrow_path_inst_query(
         sparql,
         timeout,
         graph_pattern,
@@ -797,17 +797,18 @@ def useful_path_inst_query(
     return _multi_query(
         sparql, timeout, graph_pattern, graph_pattern.matching_node_pairs,
         batch_size, _vars_steps_and_stuff, _values, _ret_val_mapping,
-        _usef_path_inst_res_init, _usef_path_inst_chunk_q,
-        _usef_path_inst_chunk_result_ext, _usef_path_inst_res_update
+        _deep_narrow_path_inst_res_init, _deep_narrow_path_inst_chunk_q,
+        _deep_narrow_path_inst_chunk_result_ext,
+        _deep_narrow_path_inst_res_update
     )
 
 
 # noinspection PyUnusedLocal
-def _usef_path_inst_res_init(_, **kwds):
+def _deep_narrow_path_inst_res_init(_, **kwds):
     return []
 
 
-def _usef_path_inst_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
+def _deep_narrow_path_inst_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
     hop, _valueblocks, steps, gp_in = _vars_steps_and_stuff
     valueblocks = {
         'st': {
@@ -821,7 +822,9 @@ def _usef_path_inst_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
 
 
 # noinspection PyUnusedLocal
-def _usef_path_inst_chunk_result_ext(q_res, _vars_steps_and_stuff, _, **kwds):
+def _deep_narrow_path_inst_chunk_result_ext(
+        q_res, _vars_steps_and_stuff, _, **kwds
+):
     hop, _valueblocks, steps, gp_in = _vars_steps_and_stuff
     chunk_res = []
     res_rows_path = ['results', 'bindings']
@@ -834,7 +837,7 @@ def _usef_path_inst_chunk_result_ext(q_res, _vars_steps_and_stuff, _, **kwds):
     return chunk_res
 
 
-def _usef_path_inst_res_update(res, update, **_):
+def _deep_narrow_path_inst_res_update(res, update, **_):
     res += update
 
 

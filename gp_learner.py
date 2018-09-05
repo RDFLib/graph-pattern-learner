@@ -54,8 +54,8 @@ from gp_query import predict_query
 from gp_query import query_stats
 from gp_query import query_time_hard_exceeded
 from gp_query import query_time_soft_exceeded
-from gp_query import useful_path_query
-from gp_query import useful_path_inst_query
+from gp_query import deep_narrow_path_query
+from gp_query import deep_narrow_path_inst_query
 from gp_query import variable_substitution_query
 from graph_pattern import canonicalize
 from graph_pattern import gen_random_var
@@ -736,7 +736,7 @@ def mutate_deep_narrow_path(
     valueblocks_t = {}
     for i in range(n // 2 + 1):
         if i < int(n/2):
-            t, q_res = useful_path_query(
+            t, q_res = deep_narrow_path_query(
                 sparql,
                 timeout,
                 child,
@@ -756,7 +756,7 @@ def mutate_deep_narrow_path(
                 )
             }
         if n-i > i:
-            t, q_res = useful_path_query(
+            t, q_res = deep_narrow_path_query(
                 sparql,
                 timeout,
                 child,
@@ -782,7 +782,7 @@ def mutate_deep_narrow_path(
     valueblocks = {}
     valueblocks.update(valueblocks_s)
     valueblocks.update(valueblocks_t)
-    t, q_res = useful_path_inst_query(
+    t, q_res = deep_narrow_path_inst_query(
         sparql,
         timeout,
         child,
