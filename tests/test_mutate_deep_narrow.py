@@ -3107,7 +3107,7 @@ def main():
         key = random.choice(gp_found.keys())
         gp_ = gp_found[key]
         # eval_gp(gtp_scores, gp_)
-        r = mutate_deep_narrow(sparql, timeout, gp_, gtp_scores)
+        r = mutate_deep_narrow(sparql, timeout, gtp_scores, gp_)
         logger.info(i)
         logger.info(r)
         res.append(r)
