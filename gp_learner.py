@@ -737,7 +737,7 @@ def mutate_deep_narrow_path(
         # with default values the distribution is as follows:
         # PDF: 1: 14 %, 2: 27 %, 3: 25 %, 4: 17 %, 5: 10 %, 6: 5 %, 7: 1.5 %, ...
         # CDF: 1: 14 %, 2: 40 %, 3: 66 %, 4: 83 %, 5: 93 %, 6: 98 %, 7: 99,6 %, ...
-        n = int(random.betavariate(alpha, beta) * (max_hops-1) + 1)
+        n = int(random.betavariate(alpha, beta) * max_hops + 1)
     nodes = [SOURCE_VAR] + [Variable('n%d' % i) for i in range(n)] + [TARGET_VAR]
     hops = [Variable('p%d' % i) for i in range(n + 1)]
     if not directions:

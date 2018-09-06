@@ -84,16 +84,16 @@ MUTPB_EN = 0.4  # prob to expand a node and add a triple from expansion
 MUTPB_EN_OUT_LINK = 0.5  # probability to add an outgoing triple (otherwise in)
 MUTPB_AE = 0.2  # prob to try adding an edge between two nodes
 MUTPB_ID = 0.05  # prob to increase distance between source and target by 1 hop
-MUTPB_FV = 0.4  # prob to fix a variable (SPARQL)
+MUTPB_FV = 0.25  # prob to fix a variable (SPARQL)
 MUTPB_FV_RGTP_SAMPLE_N = 128  # sample <= n remaining GTPs to fix variables for
 MUTPB_FV_SAMPLE_MAXN = 32  # max n of instantiations to sample from top k
 MUTPB_FV_QUERY_LIMIT = 256  # SPARQL query limit for the top k instantiations
 MUTPB_SP = 0.05  # prob to simplify pattern (warning: can restrict exploration)
 # TODO: Lower the MUTPB_DN
-MUTPB_DN = 0.5  # prob to try adding a deep and narrow path to a pattern
+MUTPB_DN = 0.6  # prob to try adding a deep and narrow path to a pattern
 MUTPB_DN_MAX_HOPS = 10  # Max number of hops in the deep narrow path
-MUTPB_DN_MAX_HOPS_ALPHA = 2.  # alpha value in a length beta distribution
-MUTPB_DN_MAX_HOPS_BETA = 5.  # beta value in a length beta distribution
+MUTPB_DN_MAX_HOPS_ALPHA = 1.15  # alpha value in a length beta distribution
+MUTPB_DN_MAX_HOPS_BETA = 1.85  # beta value in a length beta distribution
 MUTPB_DN_AVG_DEG_LIMIT = 10  # Max avg. reachable Nodes
 MUTPB_DN_MAX_HOP_INST = 10  # Max number of hop instances for the next query/ies
 
