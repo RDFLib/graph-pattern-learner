@@ -652,7 +652,7 @@ class GraphPattern(tuple):
         avg_var_to_count = Variable('avgc' + ''.join(var_to_count))
         res = "SELECT %(vtf)s (AVG(%(cvtc)s) as %(avtc)s) {\n" \
               "SELECT %(stv)s %(vtf)s (COUNT (%(vtc)s) as %(cvtc)s) {\n" \
-              "%(val)s\n" \
+              "%(val)s" \
               "%(trip)s }\n" \
               "GROUP BY %(stv)s %(vtf)s }\n" \
               "GROUP BY %(vtf)s\n" \
@@ -663,13 +663,17 @@ class GraphPattern(tuple):
                   'stv': ''.join(startvar.n3()),
                   'vtc': ''.join(var_to_count.n3()),
                   'val': ''.join([
-                      self._sparql_values_part(
-                          values=valueblocks[key], indent=' '
-                      ) for key in valueblocks
+                      'VALUES (%s) {\n%s }\n' % (
+                          ' '.join(var.n3() for var in valueblocks[key].keys()[0]),
+                          ''.join(['(%s)\n' %
+                                   ' '.join(self.curify(v) for v in vt)
+                                   for vt in valueblocks[key][(key,)]])
+                      ) for key in valueblocks.keys()
                   ]),
                   'trip': ''.join([
-                      step._sparql_triples_part(indent=' ') for step in steps
-                      # TODO: don't use private method
+                      '%s %s %s .\n' % (s.n3(), p.n3(), o.n3())
+                      for step in steps
+                      for s, p, o in step
                   ]) + ''.join([
                       self._sparql_triples_part(indent=' ') if gp_in else ''
                   ]),
@@ -688,19 +692,23 @@ class GraphPattern(tuple):
     ):
         # TODO: Maybe use a limit
         res = "SELECT %(vtf)s (COUNT (?source) as ?cst) {\n" \
-              "%(val)s\n" \
+              "%(val)s" \
               "%(trip)s }\n" \
               "GROUP BY %(vtf)s\n" \
               "HAVING (COUNT (?source) > 0)" % {
                   'vtf': ' '.join([var.n3() for var in hop]),
                   'val': ''.join([
-                      self._sparql_values_part(
-                          values=valueblocks[key], indent=' '
-                      ) for key in valueblocks
+                      'VALUES (%s) {\n%s }\n' % (
+                          ' '.join(var.n3() for var in valueblocks[key].keys()[0]),
+                          ''.join(['(%s)\n' %
+                                   ' '.join(self.curify(v) for v in vt)
+                                   for vt in valueblocks[key].values()[0]])
+                      ) for key in valueblocks.keys()
                   ]),
                   'trip': ''.join([
-                      step._sparql_triples_part() for step in steps
-                      # TODO: don't use private method
+                      '%s %s %s .\n' % (s.n3(), p.n3(), o.n3())
+                      for step in steps
+                      for s, p, o in step
                   ]) + ''.join([
                       self._sparql_triples_part(indent=' ') if gp_in else ''
                   ]),
