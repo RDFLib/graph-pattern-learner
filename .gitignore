@@ -7,3 +7,6 @@ venv/
 # ignore py compiled etc. files
 *.pyc
 *.pyo
+
+# ignore .idea
+.idea/

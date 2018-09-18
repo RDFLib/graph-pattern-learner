@@ -245,7 +245,7 @@ def canonicalize(gp, shorten_varnames=True):
         and len(gp.nodes) == len(cgp.nodes)
         and len(gp.edges) == len(cgp.edges)
         and sorted(gp.identifier_counts().values()) ==
-            sorted(cgp.identifier_counts().values())
+        sorted(cgp.identifier_counts().values())
     ):
         # canonicalization should never change any of the features above, but it
         # did before (e.g., https://github.com/RDFLib/rdflib/issues/494 ).
@@ -636,6 +636,107 @@ class GraphPattern(tuple):
         res = textwrap.dedent(res)
         return self._sparql_prefix(res)
 
+
+    def to_sparql_deep_narrow_path_query(
+            self,
+            var_to_fix,
+            var_to_count,
+            valueblocks,
+            steps,
+            startvar,
+            avglimit=10,
+            gp_in=False
+    ):
+        # TODO: Maybe use a limit
+        count_var_to_count = Variable('c' + ''.join(var_to_count))
+        avg_var_to_count = Variable('avgc' + ''.join(var_to_count))
+        res = "SELECT %(vtf)s (AVG(%(cvtc)s) as %(avtc)s) {\n" \
+              "SELECT %(stv)s %(vtf)s (COUNT (%(vtc)s) as %(cvtc)s) {\n" \
+              "%(val)s" \
+              "%(trip)s }\n" \
+              "GROUP BY %(stv)s %(vtf)s }\n" \
+              "GROUP BY %(vtf)s\n" \
+              "HAVING (AVG (%(cvtc)s) < %(avgl)s)" % {
+                  'vtf': ''.join(var_to_fix.n3()),
+                  'cvtc': ''.join(count_var_to_count.n3()),
+                  'avtc': ''.join(avg_var_to_count.n3()),
+                  'stv': ''.join(startvar.n3()),
+                  'vtc': ''.join(var_to_count.n3()),
+                  'val': ''.join([
+                      'VALUES (%s) {\n%s }\n' % (
+                          ' '.join(var.n3() for var in valueblocks[key].keys()[0]),
+                          ''.join(['(%s)\n' %
+                                   ' '.join(self.curify(v) for v in vt)
+                                   for vt in valueblocks[key][(key,)]])
+                      ) for key in valueblocks.keys()
+                  ]),
+                  'trip': ''.join([
+                      '%s %s %s .\n' % (s.n3(), p.n3(), o.n3())
+                      for step in steps
+                      for s, p, o in step
+                  ]) + ''.join([
+                      self._sparql_triples_part(indent=' ') if gp_in else ''
+                  ]),
+                  'avgl': str(avglimit),
+              }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
+
+    def to_sparql_deep_narrow_path_inst_query(
+            self,
+            hop,
+            valueblocks,
+            steps,
+            gp_in=False
+    ):
+        # TODO: Maybe use a limit
+        res = "SELECT %(vtf)s (COUNT (?source) as ?cst) {\n" \
+              "%(val)s" \
+              "%(trip)s }\n" \
+              "GROUP BY %(vtf)s\n" \
+              "HAVING (COUNT (?source) > 0)" % {
+                  'vtf': ' '.join([var.n3() for var in hop]),
+                  'val': ''.join([
+                      'VALUES (%s) {\n%s }\n' % (
+                          ' '.join(var.n3() for var in valueblocks[key].keys()[0]),
+                          ''.join(['(%s)\n' %
+                                   ' '.join(self.curify(v) for v in vt)
+                                   for vt in valueblocks[key].values()[0]])
+                      ) for key in valueblocks.keys()
+                  ]),
+                  'trip': ''.join([
+                      '%s %s %s .\n' % (s.n3(), p.n3(), o.n3())
+                      for step in steps
+                      for s, p, o in step
+                  ]) + ''.join([
+                      self._sparql_triples_part(indent=' ') if gp_in else ''
+                  ]),
+              }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
+    def to_sparql_precheck_query(
+            self,
+            values,
+            gp_in=False
+    ):
+        res = "SELECT * {\n" \
+              "%(val)s\n" \
+              "%(trip)s\n" \
+              "}\n" \
+              "LIMIT 1" % {
+                  'val': ''.join(
+                      self._sparql_values_part(values=values, indent=' ')
+                  ),
+                  'trip': ''.join(self._sparql_triples_part(indent=' ')) +
+                          ''.join([
+                              self._sparql_triples_part(indent=' ') if gp_in else ''
+                          ]),
+              }
+        res = textwrap.dedent(res)
+        return self._sparql_prefix(res)
+
     def to_sparql_ask_query(
             self,
             bind=None,
@@ -656,9 +757,9 @@ class GraphPattern(tuple):
     ):
         assert bind is None or isinstance(bind, dict)
         assert values is None or (
-            isinstance(values, dict) and
-            isinstance(next(six.iterkeys(values)), Iterable) and
-            isinstance(next(six.itervalues(values)), Iterable)
+                isinstance(values, dict) and
+                isinstance(next(six.iterkeys(values)), Iterable) and
+                isinstance(next(six.itervalues(values)), Iterable)
         )
 
         res = ''
@@ -1042,7 +1143,6 @@ class GraphPatternStats(object):
         ]
         return res
 
-
     def prune_counts(self, below=2):
         lns = len(self.identifier_gt_node_sum)
         ln = len(self.identifier_gt_node_count)
@@ -1069,7 +1169,7 @@ class GraphPatternStats(object):
 
     def __str__(self):
         return '%s: pairs: %d, nodes: %d, Identifier counts:\n' \
-            'Pairs: %s\nNodes: %s' % (
-                self.__class__.__name__, len(self.gt_pairs), len(self.nodes),
-                self.identifier_gt_pair_count, self.identifier_gt_node_count
-            )
+               'Pairs: %s\nNodes: %s' % (
+                   self.__class__.__name__, len(self.gt_pairs), len(self.nodes),
+                   self.identifier_gt_pair_count, self.identifier_gt_node_count
+               )
