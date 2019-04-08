@@ -12,7 +12,9 @@ numpy>=1.12.1
 objgraph>=3.1.0
 requests>=2.16.5
 #rdflib>=4.2.1
-git+git://github.com/RDFLib/rdflib@master#egg=rdflib
+# temporary workaround for https://github.com/RDFLib/rdflib/issues/867
+git+git://github.com/RDFLib/rdflib@6cb0dabce15a0d5dc81954ecb833e31b47a68e28#egg=rdflib
+#git+git://github.com/RDFLib/rdflib@master#egg=rdflib
 scikit-learn>=0.18.1
 scipy>=0.19.0
 scoop>=0.7.1.1
