@@ -1717,7 +1717,7 @@ def main(
     else:
         gsa = get_semantic_associations
         assocs_train = gsa(train_filename) if train_filename else []
-        assocs_test = gsa(test_filename) if train_filename else []
+        assocs_test = gsa(test_filename) if test_filename else []
         if predict == 'train_set':
             assert assocs_train, 'trying to train but train file empty'
         if predict == 'test_set':
