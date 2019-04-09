@@ -65,6 +65,22 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--swap_source_target",
+        help="allows to turn the ground truth source-target-pairs around for "
+             "all following considerations: (s,t) --> (t,s)",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--drop_invalid",
+        help="drops invalid ground truth source-target-pairs (i.e., invalid N3 "
+             "pairs (e.g., due to bad (URI) encoding)). Will still warn about "
+             "them.",
+        action="store_true",
+        default=False,
+    )
+
+    parser.add_argument(
         "--print_train_test_sets",
         help="prints the sets used for training and testing",
         action="store",

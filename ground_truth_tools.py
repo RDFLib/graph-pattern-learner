@@ -81,7 +81,9 @@ def URIRefify(links):
     return tuple([URIRef(l) for l in links])
 
 
-def get_semantic_associations(fn=None, limit=None):
+def get_semantic_associations(
+        fn=None, limit=None, swap_source_target=False, drop_invalid=False
+):
     if not fn:
         verified_mappings = get_verified_mappings()
         semantic_associations = get_dbpedia_pairs_from_mappings(
@@ -105,7 +107,31 @@ def get_semantic_associations(fn=None, limit=None):
                     break
                 source = from_n3(row['source'].decode('UTF-8'))
                 target = from_n3(row['target'].decode('UTF-8'))
-                semantic_associations.append((source, target))
+
+                for x in (source, target):
+                    # noinspection PyBroadException
+                    try:
+                        x.n3()
+                    except Exception:
+                        if drop_invalid:
+                            logger.warning(
+                                'ignoring ground truth pair %r: %r cannot be '
+                                'serialized as N3',
+                                (row['source'], row['target']), x
+                            )
+                            break
+                        else:
+                            logger.error(
+                                'error in ground truth pair %r: %r cannot be '
+                                'serialized as N3',
+                                (row['source'], row['target']), x
+                            )
+                            raise
+                else:
+                    semantic_associations.append((source, target))
+    if swap_source_target:
+        logger.info('swapping all (source, target) pairs: (s,t) --> (t,s)')
+        semantic_associations = [(t, s) for s, t in semantic_associations]
     return semantic_associations
 
 

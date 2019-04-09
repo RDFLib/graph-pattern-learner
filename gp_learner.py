@@ -1682,6 +1682,8 @@ def main(
         splitting_variant='random',
         train_filename=None,
         test_filename=None,
+        swap_source_target=False,
+        drop_invalid=False,
         init_patterns_filename=None,
         print_train_test_sets=True,
         reset=False,
@@ -1708,14 +1710,18 @@ def main(
     timer_start = datetime.utcnow()
     main_start = timer_start
 
+    gsa = partial(
+        get_semantic_associations,
+        swap_source_target=swap_source_target,
+        drop_invalid=drop_invalid,
+    )
     if not train_filename and not test_filename:
         # get semantic association pairs and split in train and test sets
-        semantic_associations = get_semantic_associations(associations_filename)
+        semantic_associations = gsa(associations_filename)
         assocs_train, assocs_test = split_training_test_set(
             semantic_associations, variant=splitting_variant
         )
     else:
-        gsa = get_semantic_associations
         assocs_train = gsa(train_filename) if train_filename else []
         assocs_test = gsa(test_filename) if test_filename else []
         if predict == 'train_set':
