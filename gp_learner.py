@@ -1730,20 +1730,22 @@ def main(
     sys.stderr.flush()
 
     if print_train_test_sets:
-        print(
-            "Training Set Source Target Pairs:\n"
-            "================================="
-        )
-        for s, t in assocs_train:
-            print("Train: %s %s" % (s.n3(), t.n3()))
+        if assocs_train:
+            print(
+                "Training Set Source Target Pairs:\n"
+                "================================="
+            )
+            for s, t in assocs_train:
+                print("Train: %s %s" % (s.n3(), t.n3()))
 
-        print(
-            "\n\n"
-            "Test Set Source Target Pairs:\n"
-            "============================="
-        )
-        for s, t in assocs_test:
-            print("Test: %s %s" % (s.n3(), t.n3()))
+        if assocs_test:
+            print(
+                "\n\n"
+                "Test Set Source Target Pairs:\n"
+                "============================="
+            )
+            for s, t in assocs_test:
+                print("Test: %s %s" % (s.n3(), t.n3()))
 
         sys.stdout.flush()
         sys.stderr.flush()
