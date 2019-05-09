@@ -8,6 +8,7 @@ import logging
 import random
 
 import rdflib
+from rdflib import Literal
 from rdflib import URIRef
 from rdflib import Variable
 from scipy.stats import binom
@@ -218,6 +219,20 @@ def test_simplify_pattern():
     ]
     res = mutate_simplify_pattern(gp2)
     assert res == gp, 'not simplified:\n%s\nto\n%s' % (gp2, res)
+
+    # make sure that we keep literals
+    gp = GraphPattern([
+        (SOURCE_VAR, Variable('p'), Literal('foo')),
+        (SOURCE_VAR, wikilink, Literal('bar')),
+        (SOURCE_VAR, wikilink, TARGET_VAR),
+        (TARGET_VAR, Variable('q'), Literal('bla')),
+        (SOURCE_VAR, wikilink, Literal('blu')),
+        (SOURCE_VAR, Variable('r'), Literal('foobar')),
+        (TARGET_VAR, Variable('r'), Literal('foobar')),
+
+    ])
+    res = mutate_simplify_pattern(gp)
+    assert res == gp, 'was simplified (bad):\n%s\nto\n%s' % (gp, res)
 
 
 def test_remaining_gain_sample_gtps():
