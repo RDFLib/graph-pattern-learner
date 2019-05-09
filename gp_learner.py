@@ -565,11 +565,11 @@ def mutate_fix_var_filter(item_counts):
                     len(i_n3), config.MAX_LITERAL_SIZE, i_n3[:128]
                 )
                 del item_counts[i]
-            if i.datatype in (XSD['float'], XSD['double']) \
+            elif i.datatype in (XSD['float'], XSD['double']) \
                     and six.text_type(i).lower() in ('nan', 'inf'):
                 logger.debug('excluding %s due to Virtuoso Bug', i_n3)
                 del item_counts[i]
-        if isinstance(i, URIRef):
+        elif isinstance(i, URIRef):
             # noinspection PyBroadException
             try:
                 i.n3()
@@ -583,9 +583,15 @@ def mutate_fix_var_filter(item_counts):
                     i
                 )
                 del item_counts[i]
-        if isinstance(i, BNode):
+        elif isinstance(i, BNode):
             # make sure that BNodes stay variables
             logger.info('removed BNode from mutate_fix_var')
+            del item_counts[i]
+        else:
+            logger.warning(
+                'exlcuding unknown result type from mutate_fix_var:\n%r',
+                i
+            )
             del item_counts[i]
 
 
