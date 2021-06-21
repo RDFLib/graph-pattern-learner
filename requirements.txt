@@ -24,7 +24,7 @@ git+git://github.com/RDFLib/rdflib@6cb0dabce15a0d5dc81954ecb833e31b47a68e28#egg=
 #splendid>=1.1.0
 
 # frozen stable:
-appdirs==1.4.3
+appdirs==1.4.4
 cachetools==2.0.0
 certifi==2017.4.17
 chardet==3.0.3
