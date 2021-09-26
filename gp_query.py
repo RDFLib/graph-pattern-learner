@@ -62,6 +62,8 @@ class _QueryStats(object):
         self.ask_multi_query_count = 0
         self.combined_ask_count_multi_query_count = 0
         self.variable_substitution_query_count = 0
+        self.useful_path_query_count = 0
+        self.useful_path_inst_query_count = 0
         self.predict_query_count = 0
         self.count_query_count = 0
 
@@ -696,6 +698,144 @@ def _var_subst_chunk_result_ext(q_res, _sel_var_and_vars, _, **kwds):
 
 
 def _var_subst_res_update(res, update, **_):
+    res += update
+    
+
+def deep_narrow_path_query(
+        sparql,
+        timeout,
+        graph_pattern,
+        var_to_fix,
+        var_to_count,
+        valueblocks,
+        steps,
+        startvar,
+        avglimit=config.MUTPB_DN_AVG_DEG_LIMIT,
+        gp_in=False,
+        batch_size=None
+):
+    _query_stats.useful_path_query_count += 1
+    # TODO: maybe batch_size = batch_size - 10 * number of valueblocks for hops
+    _values = graph_pattern.matching_node_pairs
+    # TODO: maybe use not good covered stp
+    _ret_val_mapping = {stp: [stp] for stp in graph_pattern.matching_node_pairs}
+    _vars_steps_and_stuff = (
+        var_to_fix, var_to_count, startvar, valueblocks, steps, avglimit, gp_in
+    )
+    return _multi_query(
+        sparql, timeout, graph_pattern, graph_pattern.matching_node_pairs,
+        batch_size, _vars_steps_and_stuff, _values, _ret_val_mapping,
+        _deep_narrow_path_res_init, _deep_narrow_path_chunk_q,
+        _deep_narrow_path_chunk_result_ext, _deep_narrow_path_res_update
+    )
+
+
+# noinspection PyUnusedLocal
+def _deep_narrow_path_res_init(_, **kwds):
+    return []
+
+
+def _deep_narrow_path_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
+    var_to_fix, var_to_count, startvar, _valueblocks, steps, avglimit, gp_in \
+        = _vars_steps_and_stuff
+    valueblocks = {
+        startvar: {
+            (startvar,):
+                [(tup[0],) for tup in values_chunk] if startvar == SOURCE_VAR
+                else [(tup[1],) for tup in values_chunk]
+        }
+    }
+    valueblocks.update(_valueblocks)
+    return gp.to_sparql_deep_narrow_path_query(
+            var_to_fix,
+            var_to_count,
+            valueblocks,
+            steps,
+            startvar,
+            avglimit=avglimit,
+            gp_in=gp_in
+    )
+
+
+# noinspection PyUnusedLocal
+def _deep_narrow_path_chunk_result_ext(q_res, _vars_steps_and_stuff, _, **kwds):
+    var_to_fix, var_to_count, startvar, _valueblocks, steps, avglimit, gp_in \
+        = _vars_steps_and_stuff
+    chunk_res = []
+    res_rows_path = ['results', 'bindings']
+    bindings = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res, res_rows_path, default=[])
+    )
+    for row in bindings:
+        # TODO: Maybe return the avg-degree too
+        chunk_res.append(get_path(row, [var_to_fix]))
+    return chunk_res
+
+
+def _deep_narrow_path_res_update(res, update, **_):
+    res += update
+    
+    
+def deep_narrow_path_inst_query(
+        sparql,
+        timeout,
+        graph_pattern,
+        hop,
+        valueblocks,
+        steps,
+        gp_in=False,
+        batch_size=None
+):
+    _query_stats.useful_path_inst_query_count += 1
+    # TODO: maybe batch_size = batch_size - 10 * number of valueblocks for hops
+    _values = graph_pattern.matching_node_pairs
+    # TODO: maybe use not good covered stp
+    _ret_val_mapping = {stp: [stp] for stp in graph_pattern.matching_node_pairs}
+    _vars_steps_and_stuff = (hop, valueblocks, steps, gp_in)
+    return _multi_query(
+        sparql, timeout, graph_pattern, graph_pattern.matching_node_pairs,
+        batch_size, _vars_steps_and_stuff, _values, _ret_val_mapping,
+        _deep_narrow_path_inst_res_init, _deep_narrow_path_inst_chunk_q,
+        _deep_narrow_path_inst_chunk_result_ext,
+        _deep_narrow_path_inst_res_update
+    )
+
+
+# noinspection PyUnusedLocal
+def _deep_narrow_path_inst_res_init(_, **kwds):
+    return []
+
+
+def _deep_narrow_path_inst_chunk_q(gp, _vars_steps_and_stuff, values_chunk):
+    hop, _valueblocks, steps, gp_in = _vars_steps_and_stuff
+    valueblocks = {
+        'st': {
+            (SOURCE_VAR, TARGET_VAR): values_chunk
+        }
+    }
+    valueblocks.update(_valueblocks)
+    return gp.to_sparql_deep_narrow_path_inst_query(
+        hop, valueblocks, steps, gp_in=gp_in
+    )
+
+
+# noinspection PyUnusedLocal
+def _deep_narrow_path_inst_chunk_result_ext(
+        q_res, _vars_steps_and_stuff, _, **kwds
+):
+    hop, _valueblocks, steps, gp_in = _vars_steps_and_stuff
+    chunk_res = []
+    res_rows_path = ['results', 'bindings']
+    bindings = sparql_json_result_bindings_to_rdflib(
+        get_path(q_res, res_rows_path, default=[])
+    )
+
+    for row in bindings:
+        chunk_res.append([get_path(row, [h]) for h in hop])
+    return chunk_res
+
+
+def _deep_narrow_path_inst_res_update(res, update, **_):
     res += update
 
 
