@@ -62,5 +62,5 @@ solrpy==0.9.7
 SPARQLWrapper==1.8.0
 splendid==1.1.0
 subprocess32==3.2.7
-urllib3==1.21.1
+urllib3==1.26.7
 Werkzeug==0.12.2
