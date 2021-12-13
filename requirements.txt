@@ -41,7 +41,7 @@ isodate==0.5.4
 itsdangerous==0.24
 Jinja2==2.9.6
 MarkupSafe==1.0
-matplotlib==2.0.2
+matplotlib==3.5.1
 networkx==1.11
 nose==1.3.7
 numpy==1.12.1
