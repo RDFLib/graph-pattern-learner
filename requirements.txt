@@ -51,7 +51,7 @@ packaging==16.8
 pyparsing==2.2.0
 python-dateutil==2.6.0
 pytz==2017.2
-pyzmq==16.0.2
+pyzmq==23.2.0
 #rdflib==5.0.0.dev0
 requests==2.16.5
 scikit-learn==0.18.1
