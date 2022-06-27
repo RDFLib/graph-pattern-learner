@@ -27,7 +27,7 @@ git+git://github.com/RDFLib/rdflib@6cb0dabce15a0d5dc81954ecb833e31b47a68e28#egg=
 appdirs==1.4.3
 cachetools==2.0.0
 certifi==2017.4.17
-chardet==3.0.3
+chardet==5.0.0
 click==6.7
 cycler==0.10.0
 deap==1.0.2.post2
